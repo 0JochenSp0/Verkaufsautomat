@@ -7,7 +7,7 @@ Für Wachteleier wurde keine gesetzliche Kühlpflicht gefunden. Verlangt ist ein
 
 ## Entscheidung
 Wir bauen einen gebrauchten Kühlschrank ein, der Kältekreis bleibt unangetastet. Der Pi schaltet ihn über ein Relais und regelt mit Hysterese auf **10–15 °C**:
-- Mindest-Aus-Zeit 5 min, Mindest-Ein-Zeit, begrenzte Zahl von Starts pro Stunde.
+- Mindest-Aus-Zeit, Mindest-Ein-Zeit, Anlaufsperre nach Stromausfall. Die Werte stehen in konzept.md §4 (Stand 2026-11-22: 6 min aus, 5 min ein).
 - Das Originalthermostat steht auf „kalt“ und dient als Sicherheits-Backstop.
 
 ## Alternativen

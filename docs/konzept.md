@@ -117,17 +117,33 @@ Markierungen: ⚠️ = Risiko, 🔶 = abweichende Meinung bzw. Empfehlung gegen 
 - ⚠️ Unterhalb von +10 °C (SN) läuft der Kompressor außerhalb der Spezifikation. Das passt zum Plan „Kühlung im Winter aus“.
 
 **Regelung:**
-- Das Originalthermostat steht auf „kalt“ und dient als Sicherheits-Backstop. Der Pi schaltet das Relais (Schließer) mit Hysterese.
-- Mindest-Aus-Zeit 5 min (Druckausgleich), Mindest-Ein-Zeit, und die Zahl der Starts pro Stunde ist begrenzt.
+- Das Originalthermostat steht auf „kalt“ und dient als Sicherheits-Backstop gegen Frost. Der Pi schaltet das Relais (Schließer, stromlos = Kühlschrank aus) mit Hysterese.
 - Fällt der Pi aus, fällt das Relais ab, der Kühlschrank geht aus und die Eier werden über die Temperaturgrenze gesperrt.
+- **Startwerte** (in M3 als Parameter in `params.json`, am Gerät nachjustieren):
+
+| Größe | Wert | Begründung |
+|---|---|---|
+| Regelfühler | Innen Luft | Reagiert schnell. Für die Verkaufssperre zählt der Fühler auf der Eier-Ebene, weil er träger ist und näher an der Ware liegt. |
+| Einschalten | ≥ 13,5 °C | 1,5 K Reserve zur Sperrgrenze 15 °C, denn der Produktfühler läuft nach |
+| Ausschalten | ≤ 11,0 °C | Hysterese 2,5 K, 1 K Reserve zur Sperrgrenze 10 °C für das Nachkühlen des Verdampfers |
+| Mindest-Aus-Zeit | 6 min | Druckausgleich, sonst läuft der Kompressor gegen Druck an und der Motorschutz löst aus |
+| Mindest-Ein-Zeit | 5 min | Ölrückführung, kein Takten |
+| Starts pro Stunde | höchstens ≈ 5 | Ergibt sich aus den Mindestzeiten, ein eigener Zähler ist nicht nötig |
+| Anlaufsperre nach Boot oder Stromausfall | 6 min | Bei kurzem Netzausfall ist der Druck noch nicht ausgeglichen |
+| Laufzeitalarm | > 60 min am Stück ohne Erreichen der Ausschaltgrenze | Tür offen, Verflüssiger verdeckt, Kältemittelverlust |
+| Kälte-Alarm | Luft < 9 °C bei Relais aus | Relais klebt. Eier sperren, Meldung an den Betreiber. |
+| Fühlerfehler (DS18B20 fehlt, CRC-Fehler, 85 °C bzw. −127 °C) | Relais aus, Eier sperren | Ohne Messwert wird nicht gekühlt |
+| Außentemperatur < +10 °C | kein Start | Außerhalb der Klimaklasse. Der Innenraum braucht dann ohnehin kaum Kühlung. |
+
+- Die Mindestzeiten gelten auch für manuelles Schalten in der Web-UI. Jeder Schaltvorgang landet mit Grund im Temperaturlog.
 
 **⚠️ Verkleidung:**
 - Der Verflüssiger muss frei bleiben. Bei einem Skin-Condenser in den Seitenwänden dürfen diese **nicht** mit XPS gedämmt werden: Luftspalt plus Lüftungsöffnungen unten und oben.
 - Bei einem Drahtverflüssiger hinten gilt dasselbe für die Rückseite. Lüftungsquerschnitt nach Herstellerangabe.
 - Im Sommer fängt die Holzverkleidung die Sonne ab, die Dämmung ist eher sekundär.
 
-**Elektronikfach** (oben vorn, hinter dem Display, nicht über der Kompressorwärme):
-- IP54-Gehäuse mit Druckausgleichs-Membran und PTC-Heizung 10–20 W, die per Thermostat unter ca. +5 °C anspringt und auch Taupunkt-Kondensat verhindert.
+**Elektronikfach** (Box im Innenraum unten neben der Motorplatte, ADR 0009, 2026-11-22):
+- IP54-Gehäuse mit Druckausgleichs-Membran, tropfdichtem Deckel und 24-V-Heizung 10–20 W, die unter ca. +5 °C anspringt. Nur Ethernet, weil der Korpus WLAN abschirmt.
 - Pi 3B laut Hersteller ca. 0–50 °C (wird geprüft). Display: Industrietyp mit −20…+70 °C wählen, Consumer-LCDs werden unter 0 °C träge.
 - Industrielle SD-Karte (pSLC) oder USB-SSD.
 
@@ -193,7 +209,7 @@ Kunde      Pi                                  PayPal
 ## 8. Elektrische Sicherheit
 - Zuleitung über RCD 30 mA Typ A (Bestand prüfen) plus eigenen Leitungsschutz.
 - Außen H07RN-F, Verschraubungen IP65/IP67.
-- **Getrennte Gehäuse:** 230-V-Verteiler (IP65, DIN-Schiene: Klemmen, Relais oder Installationsschütz für den Kompressor, Netzteil) und SELV-Elektronikfach. Eine 230-V-Leitung kommt nicht ins SELV-Fach. Ausnahme ist die PTC-Heizung: dann als 24-V-Heizung ausführen 🔶, damit das Elektronikfach rein SELV bleibt.
+- **Getrennte Gehäuse:** 230-V-Verteiler (IP65, DIN-Schiene: Klemmen, Relais oder Installationsschütz für den Kompressor, Netzteil) und SELV-Elektronikfach. Eine 230-V-Leitung kommt nicht ins SELV-Fach. Die Heizung der Elektronikbox ist eine 24-V-Heizung, denn die Box steht im Innenraum (ADR 0009). In den Innenraum kommen keine 230 V.
 - Schutzleiter am Kühlschrankgehäuse bleibt erhalten, ebenso an allen berührbaren Metallteilen.
 - Kompressor-Relais für induktive Last bzw. Motorlast dimensioniert (AC-3/AC-15), mit Varistor oder RC-Glied.
 - ⚠️ Die 230-V-Installation nimmt eine Elektrofachkraft ab (DIN VDE 0100). Ich plane und dokumentiere sie, verdrahte sie aber nicht als „fertig“.
