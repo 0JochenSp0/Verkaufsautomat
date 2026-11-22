@@ -2,20 +2,20 @@
 
 ## Projektkontext
 - Grundgerät ist ein **gebrauchter Kühlschrank**. Der Kältekreis bleibt unangetastet. Außen kommt eine Holzverkleidung mit XPS-Dämmung, die Originaltür wird durch eine **eigene Tür** mit 3 Ausgabeklappen ersetzt.
-- Innen sitzt ein **Karussell mit 3 Ebenen** auf einer Welle mit einem Antrieb. Die Sektoren sind universal und nehmen entweder 1 Wachteleier-Schachtel oder 1 Glas Honig à 500 g auf. Ziel sind 10–20 Positionen, realistisch ca. 12 bei Ø ≈ 420 mm (siehe `cad/lib/geometry.py`).
-- **Ablauf:** Auswahl am Display → PayPal-QR (Orders API v2) → Zahlung freigegeben → Karussell dreht den Sektor vor die Klappe → **dann** Capture → nur die passende Klappe wird entriegelt.
+- Innen sitzt ein **Karussell mit 3 Ebenen** auf einer Welle mit einem Antrieb. Die Sektoren sind universal und nehmen entweder 1 Wachteleier-Schachtel oder 1 Glas Honig à 500 g auf. Ziel sind 10–20 Positionen, realistisch ca. 12 bei Ø ≈ 400 mm (Rechner mit den aktuellen Maßen: 403 mm, `cad/lib/geometry.py`).
+- **Ablauf:** Taster A (Eier) oder B (Honig), der Pi wählt den Sektor (Eier: ältestes Legedatum zuerst) → PayPal-QR (Orders API v2) → Zahlung freigegeben → Karussell dreht den Sektor vor die Klappe → **dann** Capture → nur die passende Klappe wird entriegelt.
 - **Temperatur:** Der Pi regelt den Innenraum auf **10–15 °C** über ein Relais vor dem Kühlschrank. Bei Temperatur außerhalb des Fensters, Sensorfehler oder ab dem 28. Tag nach dem Legen (§ 22 Abs. 3 Tier-LMHV) wird der Eierverkauf gesperrt. Im Winter ist die Kühlung aus und es gibt nur Honig.
-- **Hardware:** Raspberry Pi 3B (Logik, UI, Netz), dazu ESP32 (klassisch, WROOM-32) mit MicroPython als Motion-/I/O-Coprozessor über UART0. Der Pi flasht ihn selbst über EN/GPIO0 (ADR 0007). Die Software läuft als Docker-Container im Projektordner (ADR 0008). Schrittmotor mit selbsthemmendem Schneckengetriebe und TMC2209. Hall-Sensoren für Home und Index. Fail-secure-Schlösser, Reed-Kontakte, DS18B20-Fühler.
-- **Bedienung:** Display ohne Touch und Edelstahltaster. Die Admin-Web-UI läuft nur im LAN.
+- **Hardware:** Raspberry Pi 3B (Logik, UI, Netz), dazu ESP32 (klassisch, WROOM-32) mit MicroPython als Motion-/I/O-Coprozessor über UART0. Der Pi flasht ihn selbst über EN/GPIO0 (ADR 0007). Die Software läuft mit dem System-Python direkt im Projektordner, ohne Docker und ohne venv (ADR 0010). Schrittmotor mit selbsthemmendem Schneckengetriebe und TMC2209. Hall-Sensoren für Home und Index. Fail-secure-Schlösser, Reed-Kontakte, DS18B20-Fühler.
+- **Bedienung (ADR 0011):** 3 Edelstahltaster: A = Eier, B = Honig, Abbruch. A und B mit Zweifarb-LED (grün = kaufbar, rot = leer oder gesperrt, blinkend = Kauf läuft, aus = außer Betrieb). Kleines Display (3,5–5″) nur für Auswahl, Preis, QR und Countdown. Der Betreiber arbeitet über die Kommandozeile (`service_cli`), eine Web-UI ist zurückgestellt (optional nach M4).
 - Beide Produkte stammen aus **eigener Erzeugung** (Direktvermarktung).
-- Plan und Begründungen: `docs/milestones.md`, `docs/adr/`. Rechtliches: `docs/legal.md`.
+- Plan und Begründungen: `docs/technik.md` (technischer Gesamtplan), `docs/milestones.md`, `docs/adr/`. Die `README.md` ist bewusst allgemein verständlich geschrieben, ohne Technikdetails. Rechtliches: `docs/legal.md`.
 
 ## Sicherheitsregeln (nicht verhandelbar)
 1. **Keine Capture vor verifizierter Positionierung.** Erst fahren und den Index prüfen, dann `capture`, dann entriegeln.
 2. **Schlösser sind fail-secure.** Die Software darf nie annehmen, dass „stromlos = offen“ gilt. Jede Entriegelung ist zeitlich begrenzt.
 3. **Journal vor Aktion:** Jeder Zustandswechsel eines Kaufs wird in SQLite geschrieben, *bevor* die Aktion ausgeführt wird. Die Recovery beim Boot liest dieses Journal.
 4. **Im Zweifel zugunsten des Kunden:** Bezahlt, aber nicht nachweislich ausgegeben, heißt Rückerstattung plus Meldung an den Betreiber.
-5. Verkauf ist nur möglich bei synchronisierter Uhrzeit, referenziertem Karussell und ohne aktiven Fehler.
+5. Verkauf ist nur möglich bei synchronisierter Uhrzeit, referenziertem Karussell, 24 V im Fenster (ESP32 misst, geplant M1) und ohne aktiven Fehler.
 6. Die 230-V-Seite wird nur dokumentiert. Die Abnahme macht eine Elektrofachkraft. Netz- und Kleinspannung liegen in getrennten Gehäusen.
 
 ## Konventionen
@@ -23,12 +23,12 @@
 - **Einheiten:** Längen in mm, Winkel im Code in Grad (Suffix `_deg`), Temperaturen in °C, Geld in **Cent als int** (nie float).
 - **Parameter:** Alle Maße stehen in `cad/params/params.json`. Weder CAD-Makros noch Software haben hartkodierte Maße. Die Software liest die Sektorzahl aus der Konfiguration.
 - **Hardware nur über HAL:** `vending.hal.interfaces`. Jede HAL hat einen Simulator (`vending.hal.sim`), die Tests laufen ohne Hardware.
-- **Docker:** Alles läuft über `docker compose run --rm vending …` (Image enthält nur Abhängigkeiten, der Code ist bind-gemountet, Daten in `./data`). Seriell im Container immer `/dev/ttyAMA0`, nie `/dev/serial0`.
-- **Tests:** `unittest`-kompatibel (stdlib, damit sie auch ohne Docker und ohne pip auf dem Pi laufen), pytest als Runner erlaubt. Jede Änderung an Zahlung oder Zustandsmaschine braucht einen Simulator-Test.
+- **Laufzeit (ADR 0010):** System-Python, Abhängigkeiten nur aus apt (`python3-serial`, `esptool`, `gpiod`, ab M2 `python3-pygame`, `python3-segno`), `mpremote` und `ruff` per pipx. Kein Docker, keine venv, keine neuen pip-Abhängigkeiten. Aufruf aus `software/` mit `PYTHONPATH=src:firmware/esp32:../cad/lib`, Daten in `data/` der Repo-Wurzel (von `software/` aus `../data`). Seriell `/dev/ttyAMA0`.
+- **Tests:** `unittest`-kompatibel (stdlib, damit sie ohne pip auf dem Pi laufen), pytest als Runner erlaubt. Jede Änderung an Zahlung oder Zustandsmaschine braucht einen Simulator-Test.
 - **Python:** ≥ 3.11, Typannotationen, `ruff` für Stil und Lint. Möglichst wenige Abhängigkeiten.
 - **ESP32-Firmware** (`software/firmware/esp32`): MicroPython. Die Logik liegt in reinen Modulen ohne `machine`-Import, damit sie unter CPython testbar ist. `main.py` darf nichts mit `print` ausgeben, weil UART0 gleichzeitig Protokoll, REPL und Bootloader ist. Strapping-Pins sind tabu (`electronics/pinout.md`).
 - **Protokoll Pi↔ESP32:** Zeilenbasiert, ASCII, `CMD arg…\n` → `OK …` / `ERR code …` / asynchron `EVT …`. Spezifiziert in `docs/protocol-esp32.md`.
-- **Secrets** (PayPal Client-ID und Secret) liegen nur in `/data/secrets.env`, niemals im Repo.
+- **Secrets** (PayPal Client-ID und Secret) liegen nur in `data/secrets.env` in der Repo-Wurzel (gitignored, `chmod 600`), niemals im Repo.
 - **ADRs:** Neue Architekturentscheidungen kommen als `docs/adr/NNNN-titel.md` (Kontext, Entscheidung, Alternativen, Folgen).
 - **Risiken und abweichende Meinungen** werden in der Doku mit ⚠️ bzw. 🔶 markiert.
 
@@ -61,26 +61,26 @@ Das Plugin `ponytail@ponytail` ist auf Projektebene aktiv (`.claude/settings.jso
 ## Kommandos
 ```bash
 python3 cad/lib/geometry.py [--params cad/params/params.json]     # Sektorrechner
-docker compose build                                                                  # einmalig bzw. nach Dockerfile-Änderung
-docker compose run --rm vending python -m unittest discover -s tests -v
-docker compose run --rm vending python -m unittest discover -s tests -k test_home_offset   # einzelner Test
-docker compose run --rm vending python -m vending.core.service_cli --sim
-docker compose run --rm vending python -m vending.core.service_cli --port /dev/ttyAMA0     # echte Hardware
-docker compose run --rm vending ruff check .
-docker compose run --rm vending firmware/esp32/flash.sh                                  # ESP32 komplett neu flashen
-cd software && python3 -m unittest discover -s tests -v                                  # ohne Docker (stdlib, tests/_paths.py setzt sys.path)
 freecadcmd cad/macros/carousel.py                                  # (FreeCAD nötig) erzeugt cad/out/carousel.FCStd/.step
+sudo apt install python3-serial esptool gpiod curl pipx && pipx install mpremote ruff   # einmalig (ADR 0010)
+cd software && export PYTHONPATH=src:firmware/esp32:../cad/lib    # für alle folgenden Befehle
+python3 -m unittest discover -s tests -v                          # Tests (tests/_paths.py setzt den Pfad auch selbst)
+python3 -m unittest discover -s tests -k test_home_offset         # einzelner Test
+python3 -m vending.core.service_cli --sim
+python3 -m vending.core.service_cli --port /dev/ttyAMA0           # echte Hardware
+ruff check .
+firmware/esp32/flash.sh                                           # ESP32 komplett neu flashen
 ```
 
 ## Architektur (dateiübergreifend)
 - **Eine Firmware-Logik, zwei Laufzeiten:** `firmware/esp32/carousel_fw/` (`machine_logic.Machine`, `protocol.Dispatcher`) läuft auf dem ESP32 *und* im Simulator. `vending.hal.sim` importiert genau diesen Code: `FakeMechanics` ersetzt die Pins, `SimTransport` speist Zeilen direkt in den `Dispatcher`. Tests und `--sim` prüfen damit die echte Firmware samt Protokoll. Nur `firmware/esp32/main.py` (Pins, WDT, stdin-Protokoll, Schrittschleife) und `flash.sh` ist hardwaregebunden und ungetestet.
 - **Kette:** `core.service_cli` → `core.motion_service.MotionService` (Position → Ebene/Sektor, Keepalive-Thread) → `hal.esp32.Esp32Carousel` (Zeilenprotokoll, sammelt `EVT`) → `SerialTransport` (UART) oder `SimTransport`.
 - **Konfiguration:** `vending.config.load()` leitet `MachineConfig` aus `cad/params/params.json` ab. `MotionService.connect()` schickt nach jedem (Re)Connect alle Werte als `CFG` an den ESP32, denn der startet nach einem Reset mit Defaults.
-- **Noch leer (Platzhalter für M2/M3):** `vending.payment`, `vending.ui`, `vending.web`, `vending.climate`. Journal, Kaufzustandsmaschine und Recovery existieren noch nicht.
+- **Noch leer (Platzhalter für M2/M3):** `vending.payment`, `vending.ui`, `vending.climate`. Journal, Kaufzustandsmaschine und Recovery existieren noch nicht.
 
 ## Stand
 - M0 (Gerüst) ist erledigt. M1 (Karussell-Prototyp) läuft: Geometrierechner, Karussell-Makro, HAL, Simulator, ESP32-Firmware (noch nicht am Gerät getestet) und Service-CLI.
-- Umgebung: Git ist eingerichtet (Branch `main`, Remote `origin` = `git@github-verkaufsautomat:0JochenSp0/Verkaufsautomat.git`). Der SSH-Alias `github-verkaufsautomat` in `~/.ssh/config` nutzt den Deploy-Key `~/.ssh/verkaufsautomat_deploy` mit Schreibrecht. GitHub-CLI `gh` liegt in `~/.local/bin` (Release-Binary, Update manuell, nicht eingeloggt). Auf dem Host fehlen pip, pytest, ruff und FreeCAD. pyserial, esptool, mpremote und ruff gibt es im Container. Docker muss der Nutzer per `sudo apt install docker.io docker-compose` selbst installieren.
+- Umgebung: Git ist eingerichtet (Branch `main`, Remote `origin` = `git@github-verkaufsautomat:0JochenSp0/Verkaufsautomat.git`). Der SSH-Alias `github-verkaufsautomat` in `~/.ssh/config` nutzt den Deploy-Key `~/.ssh/verkaufsautomat_deploy` mit Schreibrecht. GitHub-CLI `gh` liegt in `~/.local/bin` (Release-Binary, Update manuell, nicht eingeloggt). Docker ist abgeschafft (ADR 0010). Ob `python3-serial`, `esptool`, pipx, `mpremote` und `ruff` schon installiert sind, mit `which`/`python3 -c 'import serial'` prüfen, die Installation macht der Nutzer selbst. FreeCAD fehlt.
 
 ## graphify
 

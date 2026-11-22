@@ -49,7 +49,7 @@ class Config:
         self.home_speed = 1500
         self.home_offset = 0
         self.backoff = 800
-        self.retries = 1
+        self.retries = 0                # no automatic second move after a stall (bench may set 1)
         self.home_max_factor = 1.15
         self.unlock_max_s = 60
         self.hb_timeout_s = 10

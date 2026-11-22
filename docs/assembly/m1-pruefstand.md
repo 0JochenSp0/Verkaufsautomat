@@ -27,19 +27,20 @@ echo "dtoverlay=disable-bt" | sudo tee -a /boot/firmware/config.txt && sudo rebo
 ```
 In `/boot/firmware/config.txt` zusätzlich `gpio=23,24=ip,np` eintragen. Dann hält der Pi die ESP32-Leitungen EN und GPIO0 beim Booten nicht fest.
 
-Docker (ADR 0008, einmalig, danach ab- und wieder anmelden):
+Pakete (ADR 0010, einmalig, kein Docker, keine venv):
 ```bash
-sudo apt install docker.io docker-compose && sudo usermod -aG docker $USER
-mkdir -p data          # sonst legt Docker ./data als root an
-docker compose build
+sudo apt install python3-serial esptool gpiod curl pipx && pipx install mpremote ruff
+sudo usermod -aG dialout,gpio $USER   # danach ab- und wieder anmelden (ab M2 zusätzlich video, ADR 0010)
+mkdir -p data          # in der Repo-Wurzel
 ```
-ESP32 flashen (vom Pi, im Container; USB am DevKit dabei **nicht** stecken):
+ESP32 flashen (vom Pi, USB am DevKit dabei **nicht** stecken):
 ```bash
-docker compose run --rm vending firmware/esp32/flash.sh
+cd software && export PYTHONPATH=src:firmware/esp32:../cad/lib
+firmware/esp32/flash.sh
 ```
 Erster Test:
 ```bash
-docker compose run --rm vending python -m vending.core.service_cli --port /dev/ttyAMA0
+python3 -m vending.core.service_cli --port /dev/ttyAMA0
 service> status
 service> home
 service> next
@@ -54,7 +55,7 @@ service> next
 | Test | Befehl / Vorgehen | Kriterium |
 |---|---|---|
 | Dauerlauf | `service> soak 500` | 0 Fehler |
-| Blockade | Während `goto` blockieren | `STALL` in < 2 s, ein Retry, danach Fault |
+| Blockade | Während `goto` blockieren | `STALL` in < 2 s, sofort Fault (keine automatische Wiederholung, `retries` = 0) |
 | Stromtrennung | 24 V während der Fahrt trennen, wieder einschalten | Verkauf erst nach `home`. Schloss blieb zu. |
 | Heartbeat | Pi-Programm beenden | nach `hb_timeout_s` `SAFE`, Motor stromlos |
 | Selbsthemmung | Bei aktivem Schloss am Karussell drehen | keine Bewegung |

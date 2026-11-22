@@ -10,11 +10,10 @@ requires-python = ">=3.11"
 dependencies = []            # M1 runs on the stdlib only
 
 [project.optional-dependencies]
-hw = ["pyserial>=3.5"]                                   # Pi <-> ESP32 UART (termios fallback exists)
-payment = ["httpx>=0.27"]                                # M2
-ui = ["pygame>=2.5", "segno>=1.6"]                       # M2
-web = ["fastapi>=0.110", "uvicorn>=0.29", "jinja2>=3.1"] # M3
-dev = ["pytest>=8", "ruff>=0.5"]
+# Not pip-installed: on the Pi these come from apt (ADR 0010), HTTPS via stdlib urllib.
+hw = ["pyserial>=3.5"]                                   # apt python3-serial (termios fallback exists)
+ui = ["pygame>=2.5", "segno>=1.6"]                       # M2, apt python3-pygame python3-segno
+dev = ["pytest>=8", "ruff>=0.5"]                         # ruff via pipx
 
 [project.scripts]
 vending-service = "vending.core.service_cli:main"

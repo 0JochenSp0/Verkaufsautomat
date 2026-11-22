@@ -11,7 +11,7 @@ Bisher war ein RP2040 Pico als Coprozessor für Motion und I/O vorgesehen (ADR 0
 - **Verbindung:** eine Leitung für alles.
   - Pi GPIO14/15 ↔ ESP32 **UART0** (GPIO3/1). Darüber laufen Protokoll v1, ROM-Bootloader und REPL. `main.py` liest das Protokoll über `sys.stdin`/`sys.stdout`, schaltet Ctrl-C ab und gibt nichts per `print` aus.
   - Pi GPIO23 → **EN**, Pi GPIO24 → **GPIO0**. Der Pi zieht die Leitungen nur auf low oder lässt sie hochohmig.
-- **Update:** `software/firmware/esp32/flash.sh` (im Container) flasht immer vollständig neu: Bootloader, `write-flash --erase-all` (ein esptool-Aufruf) mit gepinntem MicroPython-Image samt SHA-256, Reset, `mpremote cp`, `PING`. Konfiguration geht nicht verloren, denn der Pi sendet nach jedem Connect alle `CFG`.
+- **Update:** `software/firmware/esp32/flash.sh` (auf dem Pi, ADR 0010) flasht immer vollständig neu: Bootloader, `write_flash --erase-all` (ein esptool-Aufruf) mit gepinntem MicroPython-Image samt SHA-256, Reset, `mpremote cp`, `PING`. Konfiguration geht nicht verloren, denn der Pi sendet nach jedem Connect alle `CFG`.
 - **Kein WLAN, kein BT, kein OTA.** Die Firmware importiert `network` nicht, Updates kommen nur über den Pi.
 - **Protokoll:** unverändert v1, jetzt in `docs/protocol-esp32.md`.
 

@@ -63,8 +63,11 @@ class MotionServiceTest(unittest.TestCase):
     def test_soak_reports_and_recovers_from_block(self):
         svc, mech, _ = make_service()
         svc.ensure_homed()
-        mech.stall_after = 10           # single stall -> retried transparently
-        self.assertTrue(svc.soak(20, seed=2).ok)
+        mech.stall_after = 10           # single stall -> FAULT (no auto-retry), soak re-homes
+        r = svc.soak(20, seed=2)
+        self.assertEqual(len(r.errors), 1, r.errors)
+        self.assertIn("STALL", r.errors[0][1])
+        self.assertEqual(r.moves, 20)
 
     def test_block_surfaces_as_hal_error(self):
         svc, mech, _ = make_service()

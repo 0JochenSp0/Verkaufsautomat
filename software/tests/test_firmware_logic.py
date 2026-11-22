@@ -51,8 +51,18 @@ class HomingAndMotion(unittest.TestCase):
             m.goto(1)
         self.assertEqual(cm.exception.code, Fault.NOT_HOMED)
 
-    def test_single_stall_is_retried(self):
+    def test_single_stall_faults_by_default(self):
         m, mech, _ = make()
+        m.home()
+        mech.stall_after = 1000
+        with self.assertRaises(MotionError) as cm:
+            m.goto(2)
+        self.assertEqual(cm.exception.code, Fault.STALL)
+        self.assertFalse(m.homed)
+
+    def test_single_stall_is_retried_when_enabled(self):
+        m, mech, _ = make()
+        m.cfg.retries = 1
         m.home()
         mech.stall_after = 1000
         self.assertEqual(m.goto(2), 2)

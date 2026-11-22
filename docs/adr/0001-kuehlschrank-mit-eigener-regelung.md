@@ -3,7 +3,7 @@
 **Status:** angenommen (2026-11-21)
 
 ## Kontext
-Für Wachteleier wurde keine gesetzliche Kühlpflicht gefunden. Verlangt ist eine „möglichst konstante Temperatur“ (Tier-LMHV Anl. 2/5), siehe `docs/legal.md`. Ein reines Holzgehäuse außen schwankt im Sommer stark. Der Kühlschrank begrenzt dafür den Karusselldurchmesser auf ca. 420 mm und damit auf ca. 12 Sektoren statt 18–27.
+Für Wachteleier wurde keine gesetzliche Kühlpflicht gefunden. Verlangt ist eine „möglichst konstante Temperatur“ (Tier-LMHV Anl. 2/5), siehe `docs/legal.md`. Ein reines Holzgehäuse außen schwankt im Sommer stark. Der Kühlschrank begrenzt dafür den Karusselldurchmesser auf ca. 400 mm (Rechner mit den aktuellen Maßen: 403 mm) und damit auf ca. 12 Sektoren statt 18–27.
 
 ## Entscheidung
 Wir bauen einen gebrauchten Kühlschrank ein, der Kältekreis bleibt unangetastet. Der Pi schaltet ihn über ein Relais und regelt mit Hysterese auf **10–15 °C**:

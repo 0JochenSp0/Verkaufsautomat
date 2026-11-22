@@ -1,6 +1,6 @@
 # ADR 0009 – Elektronikbox mit Pi und ESP32 im Innenraum unten
 
-**Status:** angenommen (2026-11-22). Ersetzt den Ort „oben vorn, hinter dem Display“ aus konzept.md §4.
+**Status:** angenommen (2026-11-22). Ersetzt den Ort „oben vorn, hinter dem Display“ aus konzept.md §4. Geändert am 2026-11-22: Die Heizung ist zurückgestellt (siehe Entscheidung).
 
 ## Kontext
 Bisher war das Elektronikfach außen oben vorn vorgesehen, hinter dem Display. Der Betreiber will Pi und ESP32 im Innenraum unterbringen, in einer leicht beheizten Box im unteren Teil des Schranks. Geheizt wird nur, wenn es nachts richtig kalt wird.
@@ -8,7 +8,7 @@ Bisher war das Elektronikfach außen oben vorn vorgesehen, hinter dem Display. D
 ## Entscheidung
 - **Ort:** eine SELV-Box (Pi 3B, ESP32, TMC2209, MOSFETs, DC/DC) unten im Innenraum neben der Motorplatte. Der Zugang erfolgt über die Haupttür.
 - **Gehäuse:** IP54 oder besser, mit Druckausgleichs-Membran. Glatte, abwischbare Oberfläche, weil die Box im Lebensmittelraum steht. Der Deckel ist tropfdicht, falls ein Glas oder Ei darüber ausläuft.
-- **Heizung:** nur als 24-V-Heizung (keine 230 V im Innenraum). Sie schaltet über GPIO22 ein, wenn die Boxtemperatur (DS18B20) unter ca. +5 °C fällt, dazu ein Bimetall in Reihe als Backstop.
+- **Heizung: zurückgestellt.** Die Box wird zunächst ohne Heizung gebaut. Im 72-h-Test misst ein vorübergehend eingebauter DS18B20 die Box gegen die Innenluft. Nur wenn dabei Kondensat oder Frostgefahr erkennbar ist, kommt eine 24-V-Heizung dazu (keine 230 V im Innenraum): über GPIO22 unter ca. +5 °C bzw. +3 K über der Innenluft, Bimetall in Reihe als Backstop. Platz, Kabel und GPIO22 bleiben dafür reserviert.
 - **Netzwerk:** nur Ethernet. ⚠️ Der Kühlschrankkorpus schirmt WLAN ab, und der Pi 3B hat keinen Antennenanschluss.
 - **230 V bleibt außen** im IP65-Verteiler mit dem 24-V-Netzteil. In den Innenraum gehen nur 24 V, Ethernet und die Relais-Steuerleitung nach außen.
 

@@ -12,7 +12,7 @@ cad/out/*
 *.FCStd1
 *.FCBak
 
-# Runtime data and secrets (bind-mounted into the container as /data, ADR 0008)
+# Runtime data and secrets (journal, secrets.env, firmware cache; ADR 0010)
 /data/
 *.env
 *.sqlite

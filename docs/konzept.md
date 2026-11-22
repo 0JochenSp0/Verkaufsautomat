@@ -1,7 +1,11 @@
 # Konzept: DIY-Verkaufsautomat Wachteleier & Honig
 
-> Freigegebener Projektplan vom 2026-11-21, unverändert übernommen. Spätere Änderungen
-> stehen als ADR in `docs/adr/` und in `docs/milestones.md`. Dieses Dokument wird nicht nachgepflegt.
+> Freigegebener Projektplan vom 2026-11-21. Spätere Änderungen stehen als ADR in `docs/adr/`, in
+> `docs/milestones.md` und im Gesamtplan `docs/technik.md`. Dieses Dokument wird nicht nachgepflegt.
+> ⚠️ Überholt seit der Verschlankung (2026-11-22): kein Docker (ADR 0010), keine RTC, 2 statt 4
+> DS18B20, kein Außenfühler, keine Innenraumheizung, Boxheizung nur bei Bedarf, kein
+> Schloss-Rückmeldekontakt, kein Stall-Retry, Web-UI zurückgestellt, erster Einbau mit 1 Ebene.
+> Bedienung seit ADR 0011: 3 Taster (Eier, Honig, Abbruch) mit Status-LED und kleines Display. Technischer Gesamtplan: `docs/technik.md`.
 
 ## Context
 Neues, leeres Projekt (`/home/jochen/Verkaufsautomat`, noch kein Git). Ein gebrauchter Kühlschrank bekommt eine Holz-/XPS-Verkleidung und ein Karussell mit 3 Ebenen. Verkauft wird über PayPal-QR, die Steuerung ist ein Pi 3B mit Python. Das Repo enthält CAD, Elektronik, Software und Doku.

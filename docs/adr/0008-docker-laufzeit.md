@@ -1,6 +1,6 @@
 # ADR 0008 – Docker als Laufzeit für Entwicklung und Betrieb
 
-**Status:** angenommen (2026-11-22)
+**Status:** ersetzt durch ADR 0010 (2026-11-22)
 
 ## Kontext
 Auf dem Pi fehlen pip und andere Werkzeuge (pyserial, esptool, mpremote, ruff). Das Projekt soll im Projektordner als Container laufen, für Entwicklung, Tests, Flashen des ESP32 und später die Verkaufs-App.

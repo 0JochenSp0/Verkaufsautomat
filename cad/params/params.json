@@ -52,7 +52,7 @@
     "home_speed_sps": 1500,
     "index_window_steps": 400,
     "backoff_steps": 800,
-    "retries": 1,
+    "retries": 0,
     "home_offset_steps": 0,
     "_todo": "home_offset_steps: measured on the bench (steps from home trigger edge to centre of sector 0)"
   },

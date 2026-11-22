@@ -16,10 +16,10 @@ Implementierung: `software/firmware/esp32/carousel_fw/protocol.py` (ESP32), `sof
 | `PING` | `OK PONG <proto>` | dient auch als Heartbeat (jede Zeile zählt) |
 | `CFG <key> <value>` | `OK CFG <key>` | keys: `steps_per_rev sectors levels max_speed accel home_speed home_offset backoff retries unlock_max_s hb_timeout_s home_max_factor` |
 | `HOME` | `OK AT 0` | Referenzfahrt, danach auf Sektor 0 mit Index-Prüfung |
-| `GOTO <s>` | `OK AT <s>` | kürzester Weg, Retry bei Stall, Index-Prüfung |
+| `GOTO <s>` | `OK AT <s>` | kürzester Weg, Stall → Fault (`retries` = 0), Index-Prüfung |
 | `UNLOCK <level> <s>` | `OK UNLOCKING <level> <s_eff>` | nur positioniert, nur 1 Klappe gleichzeitig, `s` ≤ `unlock_max_s` |
 | `LOCK <level>` | `OK LOCKED <level>` | Solenoid stromlos |
-| `STATUS` | `OK STATUS homed=0/1 sector=<s> pos=<steps> fault=<F> flaps=111 locks=000 door=1` | flaps/door: 1 = geschlossen |
+| `STATUS` | `OK STATUS homed=0/1 sector=<s> pos=<steps> fault=<F> flaps=111 locks=000 door=1` | flaps/door: 1 = geschlossen. Geplant (M1): `v24=<mV>` (GPIO35) und `cfg=0/1` (0 = seit dem Reset kein `CFG`, Pi muss neu konfigurieren) |
 | `CLEAR` | `OK CLEARED` | Fehler quittieren (danach `HOME`) |
 | `DISABLE` | `OK DISABLED` | Motor stromlos, Schlösser stromlos, unreferenziert |
 
@@ -38,7 +38,7 @@ Implementierung: `software/firmware/esp32/carousel_fw/protocol.py` (ESP32), `sof
 ## Sicherheitsinvarianten (ESP32 erzwingt sie, unabhängig vom Pi)
 1. Keine Bewegung bei offener Klappe oder aktivem Schloss.
 2. Maximal ein Schloss aktiv, zeitbegrenzt.
-3. Bei Stall nach Retry oder bei fehlendem Index-Signal: Fault, unreferenziert. Erst `CLEAR` + `HOME` macht wieder fahrbereit.
+3. Bei Stall (nach `retries` Wiederholungen, Default 0) oder bei fehlendem Index-Signal: Fault, unreferenziert. Erst `CLEAR` + `HOME` macht wieder fahrbereit.
 4. Bei Heartbeat-Verlust, ESP32-Reset (Hardware-WDT, Brownout, EN), im Bootloader und beim Flashen sind alle Ausgänge low bzw. hochohmig mit Pull-down/Pull-up: Schlösser zu (fail-secure), Motor aus.
 
 Nach jedem Reset meldet sich der ESP32 mit Defaults. Der Pi sendet deshalb nach jedem (Re)Connect alle `CFG` (`MotionService.connect()`).
