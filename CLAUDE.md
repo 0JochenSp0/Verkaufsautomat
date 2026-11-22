@@ -80,7 +80,7 @@ freecadcmd cad/macros/carousel.py                                  # (FreeCAD n�
 
 ## Stand
 - M0 (Gerüst) ist erledigt. M1 (Karussell-Prototyp) läuft: Geometrierechner, Karussell-Makro, HAL, Simulator, ESP32-Firmware (noch nicht am Gerät getestet) und Service-CLI.
-- Umgebung: Git ist eingerichtet (Branch `main`, ohne Remote). GitHub-CLI `gh` liegt in `~/.local/bin` (Release-Binary, Update manuell). Auf dem Host fehlen pip, pytest, ruff und FreeCAD. pyserial, esptool, mpremote und ruff gibt es im Container. Docker muss der Nutzer per `sudo apt install docker.io docker-compose` selbst installieren.
+- Umgebung: Git ist eingerichtet (Branch `main`, Remote `origin` = `git@github-verkaufsautomat:0JochenSp0/Verkaufsautomat.git`). Der SSH-Alias `github-verkaufsautomat` in `~/.ssh/config` nutzt den Deploy-Key `~/.ssh/verkaufsautomat_deploy` mit Schreibrecht. GitHub-CLI `gh` liegt in `~/.local/bin` (Release-Binary, Update manuell, nicht eingeloggt). Auf dem Host fehlen pip, pytest, ruff und FreeCAD. pyserial, esptool, mpremote und ruff gibt es im Container. Docker muss der Nutzer per `sudo apt install docker.io docker-compose` selbst installieren.
 
 ## graphify
 
