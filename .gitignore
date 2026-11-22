@@ -1,0 +1,31 @@
+# Python
+__pycache__/
+*.pyc
+.venv/
+.pytest_cache/
+.ruff_cache/
+*.egg-info/
+
+# CAD output (generated)
+cad/out/*
+!cad/out/.gitkeep
+*.FCStd1
+*.FCBak
+
+# Runtime data and secrets (bind-mounted into the container as /data, ADR 0008)
+/data/
+*.env
+*.sqlite
+*.sqlite-wal
+*.sqlite-shm
+
+# Claude Code / tooling (graphify-out is rebuilt locally with /graphify)
+.claude/settings.local.json
+*.graphify-bak
+graphify-out/
+
+# Editors / OS
+.DS_Store
+.vscode/
+.idea/
+*.swp

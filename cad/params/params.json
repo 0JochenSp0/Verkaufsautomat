@@ -1,0 +1,64 @@
+{
+  "_comment": "All dimensions in mm, angles in degrees. Values marked TODO_MEASURE are placeholders until measured on the real fridge/products.",
+  "fridge_inner": {
+    "width": 450,
+    "depth": 440,
+    "height": 1100,
+    "_todo": "TODO_MEASURE: width/depth/height of the usable cooled space; depth measured from gasket plane to rear liner",
+    "rear_clearance": 25,
+    "door_clearance": 12,
+    "side_clearance": 10
+  },
+  "carousel": {
+    "levels": 3,
+    "sectors_per_level": "auto",
+    "divider_wall": 4,
+    "item_clearance": 5,
+    "rim_margin": 6,
+    "hub_diameter": 60,
+    "shaft_diameter": 20,
+    "floor_thickness": 8,
+    "level_headroom": 25,
+    "bottom_space": 120,
+    "top_space": 40,
+    "index_magnet_radius_offset": 20
+  },
+  "products": {
+    "egg_box": {
+      "_todo": "TODO_MEASURE: actual quail egg carton (10er?)",
+      "width": 125,
+      "depth": 98,
+      "height": 36,
+      "allow_rotated": true
+    },
+    "honey_jar": {
+      "_todo": "TODO_MEASURE: jar type (DIB / TO82), incl. lid",
+      "diameter": 85,
+      "height": 110
+    }
+  },
+  "door": {
+    "thickness": 70,
+    "xps_thickness": 50,
+    "window_extra": 10,
+    "max_gap_to_carousel": 8
+  },
+  "drive": {
+    "motor_full_steps": 200,
+    "microsteps": 16,
+    "gear_ratio": 30,
+    "max_speed_sps": 4000,
+    "accel_sps2": 6000,
+    "home_speed_sps": 1500,
+    "index_window_steps": 400,
+    "backoff_steps": 800,
+    "retries": 1,
+    "home_offset_steps": 0,
+    "_todo": "home_offset_steps: measured on the bench (steps from home trigger edge to centre of sector 0)"
+  },
+  "esp32": {
+    "unlock_max_s": 60,
+    "hb_timeout_s": 10,
+    "keepalive_s": 2
+  }
+}

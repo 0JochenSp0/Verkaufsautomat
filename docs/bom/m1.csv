@@ -1,0 +1,19 @@
+pos;part;qty;approx_eur;note
+1;ESP32-WROOM-32 DevKitC;1;6;MicroPython (ADR 0007)
+2;TMC2209 module (UART);1;8;StallGuard4
+3;NEMA17 stepper >=0.45Nm 1.5-2A;1;15;
+4;Worm gearbox NEMA17 ~1:30 self-locking;1;50;verify self-locking
+5;Shaft coupling gearbox->20mm;1;10;
+6;Stainless shaft 20mm ~700mm;1;20;see cutlist
+7;Flange bearing KFL004;2;10;
+8;Lazy susan bearing 300mm;1;15;
+9;HDPE/PP sheet 8mm + 4mm;1;40;prototype one level
+10;Hall switch 3.3V unipolar open-drain (DRV5032);3;6;
+11;NdFeB magnet 10x3mm;10;5;
+12;PSU 24V 100W;1;25;
+13;DC/DC 24->5.1V 3A;1;8;
+14;Solenoid lock 24V fail-secure;1;20;
+15;Reed contact + magnet;2;6;
+16;Logic-level MOSFET + flyback diode;3;5;
+17;Passives, TVS, terminals;1;10;
+18;Cables, connectors;1;10;
