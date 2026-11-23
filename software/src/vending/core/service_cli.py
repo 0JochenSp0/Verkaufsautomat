@@ -1,10 +1,12 @@
 """Service-mode CLI for the M1 bench (and later on-site service).
 
     python -m vending.core.service_cli --sim               # against the simulator
-    python -m vending.core.service_cli --port /dev/ttyAMA0 # against the real ESP32
+    python -m vending.core.service_cli --port /dev/esp32    # against the real ESP32
 
 Commands: status | home | goto <sector> | next | present <position> | unlock <level> [s] |
           lock <level> | clear | disable | events | soak <n> | layout | help | quit
+Bench calibration: jog <steps> (raw move, `pos` in status = steps from the home edge) |
+          cfg <key> <value> (temporary until the next connect; keep good values in params.json)
 """
 
 from __future__ import annotations
@@ -48,6 +50,11 @@ def run_command(svc: MotionService, argv: list[str]) -> str:
         return f"homed, at sector {d.home()}"
     if cmd == "goto":
         return f"at sector {d.goto(int(a[0]))}"
+    if cmd == "jog":
+        return f"pos {d.jog(int(a[0]))} steps from the home edge"
+    if cmd == "cfg":
+        d.configure({a[0]: a[1]})
+        return f"{a[0]} = {a[1]} (temporary, put it into params.json to keep it)"
     if cmd == "next":
         return f"at sector {svc.next_sector()}"
     if cmd == "present":
@@ -82,7 +89,7 @@ def run_command(svc: MotionService, argv: list[str]) -> str:
 def main(argv: list[str] | None = None) -> int:
     ap = argparse.ArgumentParser(description="Vending machine service CLI")
     ap.add_argument("--sim", action="store_true", help="use the simulator instead of the ESP32")
-    ap.add_argument("--port", default="/dev/ttyAMA0")
+    ap.add_argument("--port", default="/dev/esp32")
     ap.add_argument("--baud", type=int, default=115200)
     ap.add_argument("--params", default=str(config_mod.DEFAULT_PARAMS))
     ap.add_argument("-v", "--verbose", action="store_true")

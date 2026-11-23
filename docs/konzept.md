@@ -3,7 +3,7 @@
 > Freigegebener Projektplan vom 2026-11-21. Spätere Änderungen stehen als ADR in `docs/adr/`, in
 > `docs/milestones.md` und im Gesamtplan `docs/technik.md`. Dieses Dokument wird nicht nachgepflegt.
 > ⚠️ Überholt seit der Verschlankung (2026-11-22): kein Docker (ADR 0010), keine RTC, 2 statt 4
-> DS18B20, kein Außenfühler, keine Innenraumheizung, Boxheizung nur bei Bedarf, kein
+> DS18B20, kein Außenfühler, keine Innenraumheizung, Boxheizung ab 2026-11-23 fest eingebaut (ADR 0009), Umluftlüfter nur bei Bedarf, kein
 > Schloss-Rückmeldekontakt, kein Stall-Retry, Web-UI zurückgestellt, erster Einbau mit 1 Ebene.
 > Bedienung seit ADR 0011: 3 Taster (Eier, Honig, Abbruch) mit Status-LED und kleines Display. Technischer Gesamtplan: `docs/technik.md`.
 
@@ -161,8 +161,8 @@ Markierungen: ⚠️ = Risiko, 🔶 = abweichende Meinung bzw. Empfehlung gegen 
                                           └─ Netzteil 24 V DIN (z. B. 60 W)
 24 V (SELV) ─ Sicherungen je Zweig ─┬─ TMC2209 ─ Schrittmotor + Schneckengetriebe
                                     ├─ 3× Low-Side-MOSFET + Freilaufdiode ─ 3 Schlösser 24 V
-                                    └─ DC/DC 24→5,1 V 3 A ─ Pi 3B + Display + ESP32
-Pi 3B ─UART0 + EN/BOOT─ ESP32 (MicroPython): STEP/DIR/EN/DIAG, Hall Home, Hall Index, 3 Schlösser, 3 Klappen-Reed,
+                                    └─ DC/DC 24→5,1 V 3 A ─ Pi 3B + Display (ESP32 über USB vom Pi)
+Pi 3B ─USB─ ESP32 (MicroPython): STEP/DIR/EN/DIAG, Hall Home, Hall Index, 3 Schlösser, 3 Klappen-Reed,
                                  Türkontakt Haupttür, Servicetaster/Schlüsselschalter
 Pi 3B direkt: 1-Wire DS18B20 (Innen Eier-Ebene, Innen Luft, Elektronikfach, Außen), Relais-Ausgänge
               (Kühlschrank, Heizungen), Bedientaster, Display (HDMI/DSI), DS3231-RTC (I²C), Ethernet

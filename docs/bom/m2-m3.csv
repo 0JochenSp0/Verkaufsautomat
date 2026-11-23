@@ -5,7 +5,7 @@ pos;part;qty;approx_eur;milestone;note
 4;Stainless vandal push button without LED;1;10;M2;cancel
 5;Logic-level MOSFET + 100R + 10k pull-down for button LEDs;4;4;M2;Pi GPIO12/16/20/21
 6;Fuse holder + 0.5A fuse for LED branch;1;3;M2;
-7;DS18B20 waterproof probe + 4.7k pull-up;2;8;M3;air and egg level, 3rd temporarily for box test
+7;DS18B20 waterproof probe + 4.7k pull-up;3;12;M3;air, egg level, box; one more per level temporarily for 72h test
 8;Contactor/relay 24V DC coil AC-3 + varistor/RC;1;35;M3;in 230V distribution, electrician
 9;Logic-level MOSFET + flyback diode for K1 coil;1;2;M3;Pi GPIO17
 10;Solenoid lock 24V fail-secure with latch, duty cycle rated;2;40;M3;levels 2 and 3
@@ -27,3 +27,6 @@ pos;part;qty;approx_eur;milestone;note
 26;USB stick for daily backup;1;8;M3;
 27;Hand crank for motor second shaft end;1;10;M3;emergency operation F11
 28;Wood cladding, ventilation grilles;1;80;M3;condenser stays ventilated
+29;PTC heater 24V approx 20W self-limiting (enclosure heater);1;25;M3;box heater ADR 0009, no bimetal
+30;Logic-level MOSFET + 100R + 10k pull-down for heater;1;2;M3;Pi GPIO22
+31;Circulation fan 24V approx 1W;1;10;M3;only if needed (72h test), not in total

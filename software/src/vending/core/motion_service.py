@@ -67,6 +67,10 @@ class MotionService:
 
     def ensure_homed(self) -> None:
         st = self.d.status()
+        if not st.configured:
+            log.warning("ESP32 runs on defaults (reset?), sending configuration again")
+            self.connect()
+            st = self.d.status()
         if st.fault not in ("NONE",):
             log.info("clearing fault %s before homing", st.fault)
             self.d.clear()

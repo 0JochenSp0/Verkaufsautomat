@@ -1,14 +1,12 @@
 # Pinbelegung
 
 ## ESP32 (klassisch, WROOM-32 DevKit) – `software/firmware/esp32/main.py`
-Entscheidung und Begründung: ADR 0007.
+Entscheidung und Begründung: ADR 0007, Anbindung an den Pi über USB: ADR 0012.
 
 | GPIO | Funktion | Richtung | Bemerkung |
 |---|---|---|---|
-| GPIO1 (TX0) | UART0 TX → Pi RXD (GPIO15) | out | Protokoll, Flashen und REPL über dieselbe Leitung, 3,3 V direkt |
-| GPIO3 (RX0) | UART0 RX ← Pi TXD (GPIO14) | in | |
-| EN | Reset ← Pi GPIO23 | in | Pi zieht nur auf low oder bleibt hochohmig, Pull-up und RC sitzen auf dem DevKit |
-| GPIO0 | BOOT ← Pi GPIO24 | in | Pi zieht nur auf low oder bleibt hochohmig. Low beim Reset startet den Bootloader |
+| GPIO1 (TX0) / GPIO3 (RX0) | UART0 ↔ CP2102 auf dem DevKit ↔ USB ↔ Pi `/dev/esp32` | | Protokoll, Flashen und REPL über dieselbe Leitung. Nicht extern beschalten |
+| EN / GPIO0 | Auto-Reset der CP2102 (RTS → EN, DTR → GPIO0) | in | nur esptool schaltet DTR/RTS. `SerialTransport` lässt beide gemeinsam gesetzt, das löst keinen Reset aus |
 | GPIO17 / GPIO16 | UART2 TX/RX → TMC2209 PDN_UART | out/in | Eindraht: TX über 1 kΩ, RX direkt |
 | GPIO26 | TMC2209 STEP | out | |
 | GPIO27 | TMC2209 DIR | out | |
@@ -24,21 +22,21 @@ Entscheidung und Begründung: ADR 0007.
 
 **Nicht belegen:** GPIO5, 12, 14 und 15 (Strapping-Pins bzw. Signale beim Booten; GPIO12 high beim Reset → falsche Flash-Spannung) und GPIO6–11 (interner Flash).
 
-⚠️ Den USB-Anschluss am DevKit **nie gleichzeitig** mit der Pi-UART nutzen. Die CP2102 auf dem Board hängt ebenfalls an GPIO1/3.
+⚠️ GPIO1/3 nicht extern beschalten, die CP2102 auf dem Board treibt sie. Versorgung des DevKits über USB vom Pi (ADR 0012).
 
 Sensorleitungen aus dem Innenraum bekommen RC-Filter, TVS-Diode (3,3 V) und Steckverbinder IP67 (M8/M12).
 
 ## Raspberry Pi 3B
 | GPIO | Funktion | Bemerkung |
 |---|---|---|
-| 14 / 15 | UART (PL011, `/dev/ttyAMA0`) ↔ ESP32 UART0 | `dtoverlay=disable-bt`, serielle Konsole aus |
-| 23 | ESP32 EN (Reset) | nur low oder Eingang. `config.txt`: `gpio=23,24=ip,np` |
-| 24 | ESP32 GPIO0 (BOOT) | nur low oder Eingang |
+| USB | ESP32-DevKit (`/dev/esp32`, udev-Regel) | ADR 0012 |
+| 14 / 15 | frei | früher UART zum ESP32 (ADR 0007) |
+| 23 / 24 | frei | früher ESP32 EN/BOOT (ADR 0007) |
 | 2 / 3 | frei (I²C, z. B. Füllstand M3b) | keine RTC, nur NTP (2026-11-22) |
-| 4 | 1-Wire DS18B20 (2 Fühler: Luft, Eier-Ebene) | 4,7 kΩ Pull-up, `dtoverlay=w1-gpio` |
+| 4 | 1-Wire DS18B20 (3 Fühler: Luft, Eier-Ebene, Box) | 4,7 kΩ Pull-up, `dtoverlay=w1-gpio` |
 | 17 | Relais Kühlschrank (über Treiber) | **M3**: Relais-/Schützspule 24 V über MOSFET |
 | 27 | frei | Innenraumheizung gestrichen (Q8) |
-| 22 | reserviert: Heizung Elektronikbox 24 V (MOSFET) | nur falls der 72-h-Test Bedarf zeigt, dann mit Bimetall in Reihe |
+| 22 | Heizung Elektronikbox, 24-V-PTC (MOSFET) | 10 kΩ Pull-down, ADR 0009 |
 | 5 / 6 / 13 | Taster A (Eier) / B (Honig) / Abbruch (ADR 0011) | Pull-up, aktiv low, RC-Filter |
 | 12 / 16 | LED Taster A grün / rot | Low-Side-MOSFET, 10 kΩ Pull-down (Pi aus = LED aus) |
 | 20 / 21 | LED Taster B grün / rot | wie A |

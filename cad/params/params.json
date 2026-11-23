@@ -54,7 +54,9 @@
     "backoff_steps": 800,
     "retries": 0,
     "home_offset_steps": 0,
-    "_todo": "home_offset_steps: measured on the bench (steps from home trigger edge to centre of sector 0)"
+    "tmc_irun": 16,
+    "tmc_sgthrs": 60,
+    "_todo": "measured on the bench: home_offset_steps (steps from home trigger edge to centre of sector 0, `jog` + `status`), tmc_sgthrs (StallGuard, higher = more sensitive), tmc_irun (run current 0..31)"
   },
   "esp32": {
     "unlock_max_s": 60,

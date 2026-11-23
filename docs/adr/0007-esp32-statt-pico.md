@@ -1,6 +1,6 @@
 # ADR 0007 – ESP32 (klassisch, MicroPython) statt RP2040 Pico, Flashen über den Pi
 
-**Status:** angenommen (2026-11-22). Löst ADR 0002 ab.
+**Status:** angenommen (2026-11-22). Löst ADR 0002 ab. Die Abschnitte „Verbindung“ und „Update“ sind durch ADR 0012 (ESP32 über USB) abgelöst.
 
 ## Kontext
 Bisher war ein RP2040 Pico als Coprozessor für Motion und I/O vorgesehen (ADR 0002). Der Betreiber will einen ESP32 einsetzen. Der Pi soll ihn selbst flashen können, ohne PC und ohne USB-Kabel im Gerät. Die Anforderungen aus ADR 0002 bleiben gleich: jitterarme Schritte, Homing, Index- und Stall-Prüfung, zeitbegrenzte Schlösser und Heartbeat-Überwachung, auch wenn der Pi ausfällt.

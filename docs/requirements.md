@@ -24,7 +24,7 @@ Stand: 2026-11-22 (Verschlankung, siehe `milestones.md`). Herleitung und Begrün
 
 | ID | Anforderung |
 |---|---|
-| N1 | Außen, überdacht. Elektronik für −20 … +40 °C Umgebung, Kondenswasser und Insekten. Pi und ESP32 sitzen in einer SELV-Box im Innenraum unten (ADR 0009). Eine Heizung kommt nur dazu, wenn der 72-h-Test Bedarf zeigt. |
+| N1 | Außen, überdacht. Elektronik für −20 … +40 °C Umgebung, Kondenswasser und Insekten. Pi und ESP32 sitzen in einer SELV-Box im Innenraum unten (ADR 0009). Die Box hat von Anfang an eine 24-V-PTC-Heizung (ADR 0009). |
 | N2 | Stromausfall in jedem Zustand ohne Verlust von Ware oder Geld. Klappen bleiben stromlos zu, beim Boot läuft eine Recovery. |
 | N3 | Die Software läuft vollständig mit simulierter Hardware (Tests, Sandbox, Entwicklung am PC). |
 | N4 | Alle Maße sind Parameter (`cad/params/params.json`). |

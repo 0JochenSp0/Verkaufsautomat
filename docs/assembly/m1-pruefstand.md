@@ -21,34 +21,35 @@ Verdrahtung nach [`electronics/pinout.md`](../../electronics/pinout.md). Die Pul
 
 ## 4. Software
 Pi 3B:
+ESP32-DevKit per USB-Kabel an den Pi (ADR 0012), Kabel mit Zugentlastung. Die udev-Regel gibt ihm einen festen Namen:
 ```bash
-sudo raspi-config   # Interface Options → Serial: Login-Shell NEIN, Hardware JA
-echo "dtoverlay=disable-bt" | sudo tee -a /boot/firmware/config.txt && sudo reboot
+echo 'SUBSYSTEM=="tty", ATTRS{idVendor}=="10c4", ATTRS{idProduct}=="ea60", SYMLINK+="esp32"' | sudo tee /etc/udev/rules.d/99-esp32.rules
+sudo udevadm control --reload && sudo udevadm trigger
+ls -l /dev/esp32      # → ttyUSB0
 ```
-In `/boot/firmware/config.txt` zusätzlich `gpio=23,24=ip,np` eintragen. Dann hält der Pi die ESP32-Leitungen EN und GPIO0 beim Booten nicht fest.
 
 Pakete (ADR 0010, einmalig, kein Docker, keine venv):
 ```bash
-sudo apt install python3-serial esptool gpiod curl pipx && pipx install mpremote ruff
+sudo apt install python3-serial gpiod curl pipx && pipx install esptool mpremote ruff
 sudo usermod -aG dialout,gpio $USER   # danach ab- und wieder anmelden (ab M2 zusätzlich video, ADR 0010)
 mkdir -p data          # in der Repo-Wurzel
 ```
-ESP32 flashen (vom Pi, USB am DevKit dabei **nicht** stecken):
+ESP32 flashen (vom Pi über USB):
 ```bash
 cd software && export PYTHONPATH=src:firmware/esp32:../cad/lib
 firmware/esp32/flash.sh
 ```
 Erster Test:
 ```bash
-python3 -m vending.core.service_cli --port /dev/ttyAMA0
+python3 -m vending.core.service_cli --port /dev/esp32
 service> status
 service> home
 service> next
 ```
 
 ## 5. Einstellen
-1. **home_offset_steps:** Nach `home` Sektor 0 mittig vor die Klappe bringen (Schritte zählen bzw. `pos` in `status`) und in `params.json` eintragen.
-2. **StallGuard (`sgthrs`)** in `carousel_fw/tmc2209.py`: Mit der Hand bremsen und den Wert erhöhen, bis eine Blockade sicher erkannt wird, normale Fahrten aber nicht abbrechen.
+1. **home_offset_steps:** `home`, dann mit `jog <steps>` (auch negativ) Sektor 0 mittig vor die Klappe fahren. `status` zeigt in `pos` die Schritte ab der Home-Flanke. Diesen Wert als `home_offset_steps` in `params.json` eintragen und die CLI neu starten.
+2. **StallGuard:** `cfg sgthrs <wert>` (wirkt sofort, ohne Neuflashen), dann `goto` und mit der Hand bremsen. Den Wert erhöhen, bis eine Blockade sicher erkannt wird, normale Fahrten aber nicht abbrechen. Motorstrom genauso mit `cfg irun <0..31>`. Gute Werte als `tmc_sgthrs` bzw. `tmc_irun` in `params.json` eintragen.
 3. **Geschwindigkeit:** `max_speed_sps`. Bei 1:30 braucht eine halbe Umdrehung ca. 12 s bei 4000 sps. Bei Bedarf ein kleineres Übersetzungsverhältnis wählen, sofern es selbsthemmend bleibt.
 
 ## 6. Abnahme M1
@@ -60,5 +61,5 @@ service> next
 | Heartbeat | Pi-Programm beenden | nach `hb_timeout_s` `SAFE`, Motor stromlos |
 | Selbsthemmung | Bei aktivem Schloss am Karussell drehen | keine Bewegung |
 | Klappe | `unlock 0 10`, öffnen, schließen | Ereignisse OPEN/RELEASED/CLOSED, Falle rastet ein |
-| ⚠️ Fail-secure beim Flashen | Multimeter/Oszi an den Schloss-Gates (GPIO4/18/19) und TMC-EN (GPIO25), dann `flash.sh` und EN-Reset | Gates bleiben die ganze Zeit < 0,5 V, EN bleibt high (Motor aus) |
-| Boot-Rauschen | Nach `flash.sh` die Service-CLI starten, ESP32 per EN resetten | CLI meldet keinen Protokollfehler, `status` funktioniert nach `clear` + `home` |
+| ⚠️ Fail-secure beim Flashen | Multimeter/Oszi an den Schloss-Gates (GPIO4/18/19) und TMC-EN (GPIO25), dann `flash.sh` und EN-Taster am DevKit | Gates bleiben die ganze Zeit < 0,5 V, EN bleibt high (Motor aus) |
+| Boot-Rauschen | Nach `flash.sh` die Service-CLI starten, ESP32 per EN-Taster am DevKit resetten | CLI meldet keinen Protokollfehler, `status` funktioniert nach `clear` + `home` |

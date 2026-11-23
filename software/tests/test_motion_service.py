@@ -1,5 +1,7 @@
 """End-to-end: MotionService -> Esp32Carousel -> line protocol -> firmware logic -> FakeMechanics."""
 
+import collections
+import os
 import unittest
 
 import _paths  # noqa: F401
@@ -8,7 +10,7 @@ from vending import config as config_mod
 from vending.core import service_cli
 from vending.core.motion_service import MotionService
 from vending.hal.interfaces import HalError
-from vending.hal.esp32 import Esp32Carousel
+from vending.hal.esp32 import Esp32Carousel, SerialTransport
 from vending.hal.sim import FakeMechanics, SimTransport
 
 
@@ -100,6 +102,80 @@ class MotionServiceTest(unittest.TestCase):
         self.assertIn("PASS", service_cli.run_command(svc, ["soak", "50"]))
         with self.assertRaises(ValueError):
             service_cli.run_command(svc, ["bogus"])
+
+    def test_esp32_reset_is_detected_and_reconfigured(self):
+        svc, _, t = make_service()
+        svc.ensure_homed()
+        t.machine.configured = False                 # as after a WDT reset: defaults, no CFG yet
+        t.machine.cfg.unlock_max_s = 99
+        svc.ensure_homed()
+        self.assertTrue(svc.status().configured)
+        self.assertEqual(t.machine.cfg.unlock_max_s, svc.cfg.unlock_max_s)
+
+    def test_cli_jog_and_cfg(self):
+        svc, mech, _ = make_service()
+        service_cli.run_command(svc, ["home"])
+        self.assertIn("pos 300", service_cli.run_command(svc, ["jog", "300"]))
+        self.assertIn("temporary", service_cli.run_command(svc, ["cfg", "sgthrs", "80"]))
+        self.assertEqual(mech.driver[1], 80)
+
+
+class ScriptedTransport:
+    """Each written line releases the next batch of reply lines (like a slow ESP32)."""
+
+    def __init__(self, batches):
+        self.batches = collections.deque(batches)
+        self.written: list[str] = []
+        self.buf: collections.deque[str] = collections.deque()
+
+    def write_line(self, line):
+        self.written.append(line)
+        self.buf.extend(self.batches.popleft() if self.batches else [])
+
+    def read_line(self, timeout):
+        return self.buf.popleft() if self.buf else None
+
+    def close(self):
+        pass
+
+
+STATUS_OK = "OK STATUS homed=1 sector=1 pos=0 fault=NONE flaps=111 locks=000 door=1 cfg=1"
+
+
+class RequestMatchingTest(unittest.TestCase):
+    def test_late_reply_is_dropped_by_resync(self):
+        t = ScriptedTransport([[], ["OK AT 1", "OK PONG 1"], [STATUS_OK]])
+        d = Esp32Carousel(t)
+        with self.assertRaises(HalError) as cm:
+            d.goto(1)                                # reply comes too late
+        self.assertEqual(cm.exception.code, "TIMEOUT")
+        self.assertEqual(d.status().sector, 1)       # not confused by the late "OK AT 1"
+        self.assertEqual(t.written, ["GOTO 1", "PING", "STATUS"])
+
+    def test_wrong_keyword_and_wrong_sector_are_errors(self):
+        d = Esp32Carousel(ScriptedTransport([["OK AT 3"]]))
+        with self.assertRaises(HalError) as cm:
+            d.clear()
+        self.assertEqual(cm.exception.code, "PROTO")
+        d = Esp32Carousel(ScriptedTransport([["EVT DOOR OPEN", "OK AT 1"]]))
+        with self.assertRaises(HalError) as cm:
+            d.goto(2)
+        self.assertEqual(cm.exception.code, "POSITION")
+        self.assertEqual(d.poll_events()[0].kind, "DOOR")
+
+
+class SerialTransportTest(unittest.TestCase):
+    def test_read_line_with_zero_timeout_reads_the_port(self):
+        master, slave = os.openpty()
+        t = SerialTransport(os.ttyname(slave))
+        try:
+            self.assertIsNone(t.read_line(0.0))
+            os.write(master, b"EVT FLAP 0 OPEN\r\n")
+            self.assertEqual(t.read_line(0.0), "EVT FLAP 0 OPEN")
+        finally:
+            t.close()
+            os.close(master)
+            os.close(slave)
 
 
 if __name__ == "__main__":

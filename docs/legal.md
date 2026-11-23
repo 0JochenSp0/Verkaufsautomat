@@ -48,6 +48,7 @@ HonigV + LMIV, Pflichtangaben:
 - [ ] Steuerberatung: USt-Regelung, Gewerbe ja/nein
 - [ ] PayPal-Geschäftskonto aktiv, Gebühren bekannt
 - [ ] Etiketten Eier und Honig geprüft
+- [ ] Verpackungsgesetz prüfen: Registrierung im LUCID-Register (§ 9 VerpackG) und Beteiligung an einem dualen System (§ 7) für Eierschachteln und Honiggläser. Offenbar ohne Mindestmenge. (Ergänzt 2026-11-23, noch nicht recherchiert.)
 
 ## Quellen
 - [Tier-LMHV, Volltext](https://www.gesetze-im-internet.de/tier-lmhv/BJNR182800007.html)

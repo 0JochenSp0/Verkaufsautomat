@@ -8,10 +8,11 @@
 | ESP32 (ohne Funk) + Sensoren | 0,4 W | 0,8 W | WLAN/BT aus |
 | Schrittmotor + TMC2209 | 1 W (Halten reduziert) | 25 W | nur während der Fahrt |
 | Schloss (1 gleichzeitig) | 0 W | 12 W | max. `unlock_max_s` |
-| Heizung Elektronikfach | 0 W | 20 W | nur falls nachgerüstet (ADR 0009), bei < +5 °C |
+| Heizung Elektronikfach (PTC) | 0 W | 20 W | ADR 0009, unter +5 °C bzw. < Innenluft + 3 K. Einschaltstrom des kalten PTC höher → Sicherung träge |
+| Umluftlüfter (nur bei Bedarf) | 1 W | 1 W | nur falls der 72-h-Test > 2 K zwischen den Ebenen zeigt |
 | **Summe** | **≈ 9 W** | **≈ 70 W** | |
 
 → **24-V-Netzteil 100 W** (z. B. Hutschiene, Klasse II). 🔶 Das ist mehr als die 60 W aus dem Konzept: Reserve für Kälte (Motorstrom) und Alterung.
-Absicherung je Zweig: Motor 3 A, Schlösser 2 A, Heizung 2 A, DC/DC 2 A (Flachsicherung oder PTC).
+Absicherung je Zweig: Motor 3 A, Schlösser 2 A, Heizung 2 A träge, DC/DC 2 A (Flachsicherung oder PTC).
 
 Die 230-V-Seite (Kühlschrank ca. 80–150 W, Anlauf deutlich höher) läuft separat über den Verteiler, siehe Konzept §8.

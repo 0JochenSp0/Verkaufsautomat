@@ -167,6 +167,70 @@ class Locks(unittest.TestCase):
         self.assertEqual(m.tick(), [], "safe event only once")
 
 
+class TimingAndCalibration(unittest.TestCase):
+    """Moves take real (simulated) time here, like on the bench."""
+
+    def test_long_moves_do_not_trip_the_heartbeat(self):
+        clock = SimClock()
+        mech = FakeMechanics(REV, N, levels=3, clock=clock)
+        cfg = Config()
+        cfg.steps_per_rev, cfg.sectors = REV, N
+        m = Machine(mech, cfg, clock=clock)
+        d = Dispatcher(m)
+        self.assertEqual(d.handle("HOME"), "OK AT 0")
+        self.assertGreater(clock.t, cfg.hb_timeout_s, "homing must take longer than the timeout")
+        self.assertEqual(m.tick(), [])
+        t0 = clock.t
+        self.assertEqual(d.handle("GOTO 2"), "OK AT 2")          # half a turn
+        self.assertGreater(clock.t - t0, cfg.hb_timeout_s)
+        self.assertEqual(m.tick(), [])
+        self.assertTrue(m.homed)
+        self.assertEqual(d.handle("UNLOCK 0 10"), "OK UNLOCKING 0 10")
+
+    def test_jog_keeps_reference_but_blocks_unlock(self):
+        m, _, _ = make()
+        m.home()
+        self.assertEqual(m.jog(500), 500)
+        self.assertEqual(m.sector, -1)
+        with self.assertRaises(MotionError) as cm:
+            m.unlock(0, 10)
+        self.assertEqual(cm.exception.code, "NOT_READY")
+        self.assertEqual(m.goto(1), 1)
+        with self.assertRaises(MotionError):
+            m.jog(REV + 1)
+
+    def test_driver_registers_written_on_home_and_on_cfg(self):
+        m, mech, _ = make()
+        self.assertIsNone(mech.driver)
+        m.home()
+        self.assertEqual(mech.driver, (16, 60))
+        m.configure("sgthrs", "90")
+        self.assertEqual(mech.driver, (16, 90))
+        mech.driver = None                                        # e.g. VM lost, TMC reset
+        m.home()
+        self.assertEqual(mech.driver, (16, 90))
+
+    def test_cfg_levels_rereads_inputs_and_is_bounded(self):
+        m, mech, _ = make()
+        mech.force_flap(2)                                        # level 3 not wired yet: reed reads open
+        m.tick()
+        m.configure("levels", "1")
+        m.home()
+        self.assertEqual(m.goto(1), 1)
+        self.assertEqual(Dispatcher(m).handle("CFG levels 4"), "ERR BAD_VALUE levels")
+
+    def test_geometry_change_unhomes_and_status_reports_cfg(self):
+        m, _, _ = make()
+        self.assertIn("cfg=0", m.status())
+        m.configure("home_offset", "0")                           # same value: stays as it is
+        m.home()
+        m.configure("home_offset", "0")
+        self.assertTrue(m.homed)
+        m.configure("home_offset", "250")
+        self.assertFalse(m.homed)
+        self.assertIn("cfg=1", m.status())
+
+
 class ProtocolTest(unittest.TestCase):
     def test_roundtrip(self):
         m, _, _ = make()
@@ -180,6 +244,8 @@ class ProtocolTest(unittest.TestCase):
         self.assertEqual(d.handle("GOTO"), "ERR BAD_ARGS GOTO")
         self.assertEqual(d.handle("FOO"), "ERR UNKNOWN FOO")
         self.assertEqual(d.handle("UNLOCK 2 10"), "OK UNLOCKING 2 10")
+        self.assertEqual(d.handle("LOCK 2"), "OK LOCKED 2")
+        self.assertEqual(d.handle("JOG 100"), "OK POS %d" % (m.pos))
 
 
 class TmcTest(unittest.TestCase):

@@ -32,6 +32,8 @@ class MachineConfig:
     unlock_max_s: int
     hb_timeout_s: int
     keepalive_s: float
+    tmc_irun: int
+    tmc_sgthrs: int
 
     @property
     def positions(self) -> int:
@@ -56,6 +58,8 @@ class MachineConfig:
             "retries": self.retries,
             "unlock_max_s": self.unlock_max_s,
             "hb_timeout_s": self.hb_timeout_s,
+            "irun": self.tmc_irun,
+            "sgthrs": self.tmc_sgthrs,
         }
 
     def move_timeout_s(self, steps: int, speed: int | None = None) -> float:
@@ -82,4 +86,6 @@ def load(path: str | Path = DEFAULT_PARAMS) -> MachineConfig:
         unlock_max_s=esp32.get("unlock_max_s", 60),
         hb_timeout_s=esp32.get("hb_timeout_s", 10),
         keepalive_s=esp32.get("keepalive_s", 2),
+        tmc_irun=d["tmc_irun"],
+        tmc_sgthrs=d["tmc_sgthrs"],
     )

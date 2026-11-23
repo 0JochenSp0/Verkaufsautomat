@@ -16,11 +16,11 @@ Markierungen: ⚠️ = Risiko, 🔶 = abweichende Meinung bzw. Empfehlung gegen 
 | Ware | Karussell, 3 Ebenen auf einer Welle (erster Einbau mit 1 Ebene, Antrieb für 3 ausgelegt), universale Sektoren: 1 Eierschachtel **oder** 1 Glas 500 g, 12 Positionen bei Ø ≈ 400 mm (Rechner mit den aktuellen Maßen: 403 mm) | `cad/lib/geometry.py` |
 | Antrieb | NEMA 17 + selbsthemmendes Schneckengetriebe ≈ 1:30 + TMC2209, Hall-Sensoren Home und Index | konzept.md §2 |
 | Schlösser | Fail-secure-Hubmagnet mit Schnappfalle, Reed-Kontakt je Klappe (kein Schloss-Rückmeldekontakt) | ADR 0005 |
-| Steuerung | Pi 3B (Logik, Zahlung, UI, Netz) + ESP32 WROOM-32 (MicroPython, Motor, Sensoren, Schlösser, Sicherheitsinvarianten) über UART0 | ADR 0007 |
-| Ort der Elektronik | SELV-Box im Innenraum unten, nur Ethernet. Heizung nur, wenn der 72-h-Test Bedarf zeigt | ADR 0009 |
+| Steuerung | Pi 3B (Logik, Zahlung, UI, Netz) + ESP32 WROOM-32 (MicroPython, Motor, Sensoren, Schlösser, Sicherheitsinvarianten) über USB (CP2102 → UART0) | ADR 0007, 0012 |
+| Ort der Elektronik | SELV-Box im Innenraum unten, nur Ethernet, 24-V-PTC-Heizung von Anfang an | ADR 0009 |
 | Bedienung | Taster A (Eier), B (Honig), Abbruch. A und B mit Zweifarb-LED (grün kaufbar, rot nicht kaufbar). Kleines Display (3,5–5″) für Auswahl, Preis, QR und Countdown. Betreiber über die Kommandozeile | ADR 0011 |
 | Zahlung | PayPal Orders v2, nur Polling, **Capture erst nach verifizierter Positionierung** | ADR 0003 |
-| Klima | Pi regelt 10–15 °C über ein Relais vor dem Kühlschrank, 2 Fühler. Winter: Kühlung läuft nicht an, Eier gesperrt, nur Honig. | Abschnitt 4.5 |
+| Klima | Pi regelt 10–15 °C über ein Relais vor dem Kühlschrank, 3 Fühler (Luft, Eier-Ebene, Box), Boxheizung. Winter: Kühlung läuft nicht an, Eier gesperrt, nur Honig. | Abschnitt 4.5 |
 | Laufzeit | System-Python aus apt, systemd-Dienst, kein Docker, keine venv, Daten in `data/` der Repo-Wurzel | ADR 0010 |
 
 **Sicherheitsregeln** (nicht verhandelbar, siehe [`CLAUDE.md`](../CLAUDE.md)):
@@ -90,16 +90,16 @@ flowchart LR
   end
   PSU -- "24 V" --> FUSE
   FUSE --> DCDC --> PI
-  DCDC --> ESP
   FUSE --> TMC --> MOTOR["NEMA 17 + Schnecke"]
   FUSE --> MOS --> LOCKS["3 Schlösser 24 V"]
-  PI -- "UART0 + EN/BOOT" --> ESP
+  PI -- "USB (Protokoll, Flashen, 5 V)" --> ESP
   ESP -- "STEP/DIR/EN/DIAG, UART2" --> TMC
   ESP --> MOS
   HALL["Hall HOME + INDEX"] --> ESP
   REED["3 Reed Klappen + Türkontakt"] --> ESP
   PI -- "GPIO17 über MOSFET, 24-V-Spule" --> K1
-  DS["2× DS18B20<br/>Luft · Eier-Ebene"] --> PI
+  DS["3× DS18B20<br/>Luft · Eier-Ebene · Box"] --> PI
+  PI -- "GPIO22 über MOSFET" --> HEAT["PTC-Heizung Box 24 V"]
   PI --> DISP["kleines Display (in der Tür)"]
   TASTER["Taster A · B · Abbruch"] --> PI
   PI --> LEDDRV --> LEDS["LED-Ringe A/B<br/>grün/rot, 24 V"]
@@ -112,12 +112,12 @@ Leistungsbilanz: [`electronics/power-budget.md`](../electronics/power-budget.md)
 
 | ESP32 | Funktion | | Pi 3B | Funktion |
 |---|---|---|---|---|
-| GPIO1/3 | UART0 ↔ Pi (Protokoll, Bootloader, REPL) | | GPIO14/15 | UART `/dev/ttyAMA0` ↔ ESP32 |
-| EN / GPIO0 | Reset / Boot ← Pi GPIO23/24 | | GPIO23/24 | ESP32 EN / BOOT (nur low oder hochohmig) |
+| GPIO1/3, EN, GPIO0 | USB-Brücke CP2102 auf dem DevKit ↔ Pi `/dev/esp32` (ADR 0012) | | GPIO14/15 | frei |
+| | | | GPIO23/24 | frei |
 | GPIO26/27/25 | TMC STEP / DIR / EN (10 kΩ Pull-up) | | GPIO2/3 | frei (I²C, z. B. M3b) |
 | GPIO17/16 | UART2 ↔ TMC PDN_UART | | GPIO4 | 1-Wire DS18B20 |
 | GPIO34 | TMC DIAG (StallGuard) | | GPIO17 | Relais Kühlschrank |
-| GPIO32/33 | Hall HOME / INDEX | | GPIO22 | reserviert: Boxheizung (nur bei Bedarf) |
+| GPIO32/33 | Hall HOME / INDEX | | GPIO22 | Boxheizung (PTC) |
 | GPIO4/18/19 | Schloss 1–3 (10 kΩ Pull-down) | | GPIO5 / 6 / 13 | Taster A (Eier) / B (Honig) / Abbruch |
 | GPIO21/22/23 | Reed Klappe 1–3 | | GPIO12 / 16 | LED A grün / A rot |
 | GPIO13 | Türkontakt Haupttür | | GPIO20 / 21 | LED B grün / B rot |
@@ -178,13 +178,13 @@ Reed: Klappe geschlossen = low. Ein Kabelbruch liest sich als „offen“ und l�
  GND ──────────────┴──────┘
 ```
 
-**Relais Kühlschrank (Pi GPIO17) und, nur bei Bedarf, Boxheizung (Pi GPIO22)** – gleicher Treiber:
+**Relais Kühlschrank (Pi GPIO17) und Boxheizung (Pi GPIO22)** – gleicher Treiber:
 ```
  +24 V ──┬──────────────┐
          │              │
-   Spule Schütz K1     D 1N4007         Heizung: statt der Spule
-   (im 230-V-Verteiler) │               24-V-Heizwiderstand + Bimetall
-         ├──────────────┘               (öffnet bei ca. +15 °C) in Reihe
+   Spule Schütz K1     D 1N4007         Heizung: statt der Spule ein
+   (im 230-V-Verteiler) │               selbstbegrenzendes 24-V-PTC-Element
+         ├──────────────┘               (ca. 20 W), kein Bimetall, Sicherung träge
          │ Drain
  Pi GPIO ──[100 Ω]──┬─ Gate  MOSFET
                  [10 kΩ]  Source ── GND
@@ -201,7 +201,7 @@ Die K1-Kontakte liegen auf der 230-V-Seite: Schließer für Motorlast (AC-3), Va
 ```
 Vorwiderstand sitzt im Taster (24-V-Typ). Die Pull-downs halten die LEDs aus, solange der Pi nicht läuft: aus = außer Betrieb. ⚠️ Beim Kauf auf gemeinsame Anode achten, sonst High-Side schalten.
 
-**Temperaturfühler (Pi GPIO4):** DS18B20 dreiadrig, 4,7 kΩ Pull-up auf 3,3 V, 2 Fühler an einem Bus: Innen Luft (Regelung) und Eier-Ebene (Verkaufssperre). Im 72-h-Test hängt vorübergehend ein dritter Fühler in der Elektronikbox.
+**Temperaturfühler (Pi GPIO4):** DS18B20 dreiadrig, 4,7 kΩ Pull-up auf 3,3 V, 3 Fühler an einem Bus: Innen Luft (Regelung), Eier-Ebene (Verkaufssperre) und Elektronikbox (Heizung). Im 72-h-Test hängt vorübergehend je Ebene ein weiterer Fühler (Schichtung, siehe Umluftlüfter).
 
 **Taster:** Pull-up, aktiv low, RC-Filter, Entprellung in Software.
 
@@ -227,11 +227,12 @@ UART 115200 8N1, ASCII, `CMD arg…\n` → genau eine Antwort `OK …` oder `ERR
 | `PING` | `OK PONG <proto>` (Heartbeat) |
 | `CFG <key> <value>` | `OK CFG <key>`, nach jedem (Re)Connect alle Werte |
 | `HOME` / `GOTO <s>` | `OK AT <s>` nach Index-Prüfung |
+| `JOG <steps>` | `OK POS <pos>` (Kalibrierung) |
 | `UNLOCK <level> <s>` / `LOCK <level>` | `OK UNLOCKING …` / `OK LOCKED …` |
-| `STATUS` | `OK STATUS homed= sector= pos= fault= flaps= locks= door=` (geplant: `v24=`, `cfg=`) |
+| `STATUS` | `OK STATUS homed= sector= pos= fault= flaps= locks= door=` `cfg=` (geplant: `v24=`) |
 | `CLEAR` / `DISABLE` | Fehler quittieren / alles stromlos |
 
-⚠️ **Noch offen (M1, `milestones.md`):** Der Pi soll jede Antwort gegen den Befehl prüfen (Sektor im `AT`, passendes Schlüsselwort), vor dem Senden alte Zeilen verwerfen und nach einem Timeout per `PING` neu synchronisieren. Heute nimmt `request()` die nächste `OK`-Zeile, und `present()` prüft den Sektor nicht. `UNLOCK` wird nie automatisch wiederholt (M1/M2).
+Der Pi prüft jede Antwort gegen den Befehl (Schlüsselwort, bei `GOTO` der Sektor) und synchronisiert nach einem Timeout per `PING` neu. Ein ESP32-Reset fällt über `STATUS cfg=0` auf, dann schickt der Pi die Konfiguration erneut. `UNLOCK` wird nie automatisch wiederholt (M1/M2).
 
 **Invarianten auf dem ESP32:** keine Bewegung bei offener Klappe oder aktivem Schloss. Höchstens ein Schloss, zeitbegrenzt (`unlock_max_s` = 60 s). Bei Stall oder fehlendem Index: Fault, unreferenziert, erst `CLEAR` + `HOME`. Bei Heartbeat-Verlust (`hb_timeout_s` = 10 s), Reset, Bootloader und Flashen: Motor aus, Schlösser zu.
 
@@ -253,7 +254,7 @@ stateDiagram-v2
   UNLOCKED --> SAFE: Heartbeat fehlt
   SAFE --> UNHOMED: CLEAR
 ```
-Kürzester Weg, Rampen mit `accel_sps2`, Blockade wird in unter 2 s erkannt. Während einer Fahrt ist der ESP32 blockiert und prüft keinen Heartbeat. Die Heartbeat-Zeit muss deshalb nach jedem Befehl neu gesetzt werden (offener M1-Punkt, sonst endet jede Fahrt über 10 s in `SAFE`).
+Kürzester Weg, Rampen mit `accel_sps2`, Blockade wird in unter 2 s erkannt. Während einer Fahrt ist der ESP32 blockiert und prüft keinen Heartbeat. Die Heartbeat-Zeit zählt deshalb ab dem Ende jedes Befehls.
 
 ### 4.4 Kaufablauf (Pi, Journal vor Aktion)
 
@@ -337,7 +338,9 @@ jede Sekunde:
 
 **Winter:** Es gibt keinen Außenfühler und keine eigene Winterlogik. Liegt die Umgebung unter +10 °C, erreicht der Innenraum die Einschaltschwelle von 13,5 °C nicht, und der Kompressor läuft nicht an. Fällt die Eier-Ebene unter 10 °C, sperrt die Eier-Sperre automatisch. Honig bleibt verkaufbar. Eine Innenraumheizung gibt es nicht (Q8 entschieden).
 
-**Elektronikbox:** zunächst ohne Heizung. Im 72-h-Test misst ein vorübergehend eingebauter Fühler die Box gegen die Innenluft. ⚠️ Gegen Kondensat zählt dieser Abstand. Reicht die Eigenwärme des Pi nicht, kommt die 24-V-Heizung mit Bimetall an GPIO22 nach (Platz und Kabel sind vorgesehen, ADR 0009).
+**Elektronikbox (ADR 0009):** Die PTC-Heizung an GPIO22 läuft, wenn die Box unter +5 °C liegt oder weniger als 3 K über der Innenluft (Werte als Parameter). Bei einem Fehler des Boxfühlers bleibt sie an (der PTC begrenzt sich selbst), dazu eine Meldung. ⚠️ Gegen Kondensat zählt der Abstand zur Innenluft. ⚠️ Nach einem Stromausfall im Winter muss der Pi kalt booten, bevor er heizt.
+
+**Umluftlüfter (nur bei Bedarf):** Zeigt der 72-h-Test zwischen den Ebenen mehr als 2 K Unterschied, kommt ein 24-V-Lüfter (ca. 1 W) dazu, dauerhaft an 24 V, ohne GPIO.
 
 ### 4.6 Service und Notbetrieb
 - **Servicemodus** über Schlüsselschalter oder `service_cli`: Karussell Sektor für Sektor drehen, befüllen über die Haupttür. Bei offener Haupttür sind keine Verkäufe möglich, beide LEDs rot.
@@ -359,7 +362,7 @@ Repo, Konzept, Anforderungen, ADRs, Protokoll.
 2. Teile nach [`bom/m1.md`](bom/m1.md) beschaffen. Motor mit zweitem Wellenende, Getriebe auf Selbsthemmung prüfen.
 3. Grundplatte mit Drehteller-Lager, Welle, eine bis drei Ebenen, Magnete, Hall-Halter. Motor und Schnecke unter die Platte.
 4. Elektronik nach Abschnitt 3 auf einem Brett: 24-V-Netzteil, Sicherungen, DC/DC, Pi, ESP32, TMC2209 (Elko + TVS), ein Schloss mit Testklappe, Reed.
-5. Pi einrichten (UART, `gpio=23,24=ip,np`, apt-Pakete nach ADR 0010), ESP32 mit `flash.sh` flashen.
+5. Pi einrichten (udev-Regel `/dev/esp32` nach ADR 0012, apt-Pakete nach ADR 0010), ESP32 mit `flash.sh` flashen.
 6. Einstellen: `home_offset_steps`, StallGuard-Schwelle, Geschwindigkeit.
 7. Abnahme (Abschnitt 6). Anleitung: [`assembly/m1-pruefstand.md`](assembly/m1-pruefstand.md).
 
@@ -406,7 +409,8 @@ Behörden-Checkliste in [`legal.md`](legal.md), PayPal-Geschäftskonto, Etikette
 | M2 | Sim-Tests aller Sonderfälle + ≥ 100 zufällige Strom-/Netzausfälle | keine Capture ohne Positionierung, keine doppelte Capture, bezahlt und nicht ausgegeben → Rückerstattung |
 | M2 | Sim-Test LED-Logik | jede Sperre und „leer“ → rot, Kauf → blinkend, Dienst aus → aus |
 | M2 | Netz trennen in jedem Kaufzustand (Sandbox) | keine Entriegelung ohne Capture |
-| M3 | 72 h Temperaturlog | Eier-Ebene im Fenster, Box über Taupunkt (sonst Boxheizung nachrüsten) |
+| M3 | 72 h Temperaturlog | Eier-Ebene im Fenster, Box ≥ 3 K über Innenluft, Ebenen ≤ 2 K Unterschied (sonst Umluftlüfter) |
+| M3 | Kältenacht (≤ −5 °C, über Nacht stromlos, dann einschalten) | Pi bootet, Heizung bringt die Box über +5 °C, ESP32 und Ethernet laufen, Honig verkaufbar |
 | M3 | 72 h Dauerbetrieb mit simulierten Käufen | keine unerklärten Neustarts |
 | M3 | 500 Klappenzyklen je Ebene | kein Ausfall |
 | M3 | Stromtrennung ≥ 2× je Journal-Zustand | korrekte Recovery |
@@ -427,7 +431,7 @@ Software-Tests laufen ohne Hardware (stdlib `unittest`, Simulator). Jede Änderu
 | `docs/` | Anforderungen, ADRs, Rechtliches, Meilensteine, Aufbauanleitungen, BOM, dieser Plan |
 | `data/` | Laufzeitdaten (Journal, `secrets.env`, Firmware-Cache), gitignored |
 
-- **Kein Docker, keine venv** (ADR 0010). Pakete: `sudo apt install python3-serial esptool gpiod curl pipx && pipx install mpremote ruff`, dazu `sudo usermod -aG dialout,gpio $USER` (ab M2 zusätzlich `video` für das Display) und `mkdir -p data` in der Repo-Wurzel.
+- **Kein Docker, keine venv** (ADR 0010). Pakete: `sudo apt install python3-serial gpiod curl pipx && pipx install esptool mpremote ruff`, dazu `sudo usermod -aG dialout,gpio $USER` (ab M2 zusätzlich `video` für das Display) und `mkdir -p data` in der Repo-Wurzel.
 - Alle Befehle laufen aus `software/` mit `export PYTHONPATH=src:firmware/esp32:../cad/lib`.
 - **Claude Code (optional):** `.claude/settings.json` aktiviert das Plugin `ponytail` und ruft bei jedem Werkzeugaufruf `graphify` auf. Ohne graphify im `PATH` erscheint bei jedem Aufruf eine Hook-Fehlermeldung. Installation: `pipx install graphifyy`, dann `/graphify .`. Fremde Skills: `.claude/skills/THIRD_PARTY.md`.
 

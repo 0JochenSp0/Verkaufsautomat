@@ -4,6 +4,7 @@ MicroPython-compatible: no dataclasses, enum, typing at runtime.
 The hardware object `hw` is duck-typed and must provide:
 
     hw.enable(on: bool)
+    hw.setup_driver(irun: int, sgthrs: int)   # (re)write the TMC2209 registers
     hw.move(delta_steps: int, speed_sps: int, accel_sps2: int, stop_when) -> (moved_steps: int, reason: str)
         reason: "done" | "stall" | "stop"   (stop = stop_when() became true)
     hw.home_active() -> bool
@@ -36,8 +37,9 @@ class MotionError(Exception):
 class Config:
     INT_KEYS = (
         "steps_per_rev", "sectors", "levels", "max_speed", "accel", "home_speed",
-        "home_offset", "backoff", "retries", "unlock_max_s", "hb_timeout_s",
+        "home_offset", "backoff", "retries", "unlock_max_s", "hb_timeout_s", "irun", "sgthrs",
     )
+    MAX_LEVELS = 3                      # lock and flap pins on the board (electronics/pinout.md)
     FLOAT_KEYS = ("home_max_factor",)
 
     def __init__(self):
@@ -53,6 +55,8 @@ class Config:
         self.home_max_factor = 1.15
         self.unlock_max_s = 60
         self.hb_timeout_s = 10
+        self.irun = 16                  # TMC2209 run current 0..31
+        self.sgthrs = 60                # StallGuard threshold 0..255, higher = more sensitive
 
     def set(self, key, value):
         if key in self.INT_KEYS:
@@ -62,6 +66,8 @@ class Config:
         else:
             raise MotionError("BAD_KEY", key)
         if key in ("steps_per_rev", "sectors", "levels") and v <= 0:
+            raise MotionError("BAD_VALUE", key)
+        if key == "levels" and v > self.MAX_LEVELS:
             raise MotionError("BAD_VALUE", key)
         setattr(self, key, v)
 
@@ -80,6 +86,7 @@ class Machine:
         self._door = True
         self.last_rx = self._now()
         self.safe = False
+        self.configured = False      # becomes True with the first CFG; lets the Pi detect a reset
         self._init_inputs()
 
     # ---------- helpers ----------
@@ -115,6 +122,25 @@ class Machine:
         if not self._all_flaps_closed():
             raise MotionError("FLAP_OPEN", "never rotate with an open flap")
 
+    def configure(self, key, value):
+        c = self.cfg
+        old = getattr(c, key, None)
+        c.set(key, value)
+        self.configured = True
+        new = getattr(c, key)
+        if key == "levels":
+            self._init_inputs()
+        elif key in ("irun", "sgthrs"):
+            self.hw.setup_driver(c.irun, c.sgthrs)
+        elif key in ("steps_per_rev", "sectors", "home_offset") and new != old:
+            self.homed = False       # positions no longer match the new geometry
+            self.sector = -1
+
+    def _enable(self):
+        # rewritten on every HOME/JOG: the TMC loses its registers when VM drops (e.g. motor fuse)
+        self.hw.setup_driver(self.cfg.irun, self.cfg.sgthrs)
+        self.hw.enable(True)
+
     def touch(self):
         """Called on every received command (heartbeat)."""
         self.last_rx = self._now()
@@ -126,7 +152,7 @@ class Machine:
         self.safe = False
         self.homed = False
         self.sector = -1
-        self.hw.enable(True)
+        self._enable()
         c = self.cfg
         # leave the sensor first if we are sitting on it
         if self.hw.home_active():
@@ -175,6 +201,21 @@ class Machine:
             raise MotionError(Fault.INDEX, "sector %d" % s)
         self.sector = s
         return s
+
+    def jog(self, steps):
+        """Service/calibration: move by raw steps. Keeps the home reference, clears the sector."""
+        c = self.cfg
+        if self.fault != Fault.NONE:
+            raise MotionError("FAULT_ACTIVE", self.fault)
+        if abs(steps) > c.steps_per_rev:
+            raise MotionError("BAD_VALUE", "steps")
+        self._check_can_move()
+        self._enable()
+        self.sector = -1
+        if self._move(steps, c.home_speed) == "stall":
+            self._enter_fault(Fault.STALL)
+            raise MotionError(Fault.STALL, "jog")
+        return self.pos
 
     def _enter_fault(self, f):
         self.fault = f
@@ -249,6 +290,6 @@ class Machine:
         c = self.cfg
         flaps = "".join("1" if self.hw.flap_closed(i) else "0" for i in range(c.levels))
         locks = "".join("1" if i in self.lock_deadline else "0" for i in range(c.levels))
-        return "homed=%d sector=%d pos=%d fault=%s flaps=%s locks=%s door=%d" % (
+        return "homed=%d sector=%d pos=%d fault=%s flaps=%s locks=%s door=%d cfg=%d" % (
             1 if self.homed else 0, self.sector, self.pos, self.fault, flaps, locks,
-            1 if self.hw.door_closed() else 0)
+            1 if self.hw.door_closed() else 0, 1 if self.configured else 0)

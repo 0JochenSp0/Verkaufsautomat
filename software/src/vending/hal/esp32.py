@@ -11,6 +11,9 @@ from typing import Protocol
 from vending.hal.interfaces import CarouselStatus, Event, HalError
 
 SUPPORTED_PROTO = 1
+# keyword after "OK" for each command; anything else is a reply to some other request
+REPLY = {"PING": "PONG", "CFG": "CFG", "HOME": "AT", "GOTO": "AT", "JOG": "POS", "UNLOCK": "UNLOCKING",
+         "LOCK": "LOCKED", "STATUS": "STATUS", "CLEAR": "CLEARED", "DISABLE": "DISABLED"}
 
 
 class LineTransport(Protocol):
@@ -20,13 +23,15 @@ class LineTransport(Protocol):
 
 
 class SerialTransport:
-    """UART transport. Uses pyserial if installed, otherwise raw termios (Linux)."""
+    """Serial transport over the DevKit USB bridge. pyserial if installed, else raw termios (Linux)."""
 
-    def __init__(self, port: str = "/dev/ttyAMA0", baud: int = 115200):
+    def __init__(self, port: str = "/dev/esp32", baud: int = 115200):
         self._buf = b""
         try:
             import serial  # type: ignore[import-not-found]
 
+            # DTR/RTS drive GPIO0/EN through the DevKit auto-reset circuit. Leave both asserted
+            # (Linux sets them together on open): clearing them one by one pulses EN = reset.
             self._ser = serial.Serial(port, baud, timeout=0.05)
             self._fd = None
         except ImportError:
@@ -59,9 +64,9 @@ class SerialTransport:
     def read_line(self, timeout: float) -> str | None:
         deadline = time.monotonic() + timeout
         while b"\n" not in self._buf:
-            if time.monotonic() > deadline:
+            self._buf += self._read_some()      # read at least once, also for timeout=0
+            if b"\n" not in self._buf and time.monotonic() >= deadline:
                 return None
-            self._buf += self._read_some()
         line, self._buf = self._buf.split(b"\n", 1)
         return line.decode("ascii", "replace").strip()
 
@@ -82,30 +87,59 @@ class Esp32Carousel:
         self.move_timeout = move_timeout
         self._events: collections.deque[Event] = collections.deque()
         self._lock = threading.RLock()
+        self._stale = False      # a request timed out: its late reply may still be on the line
 
     # -- core --
     def request(self, line: str, timeout: float | None = None) -> list[str]:
         """Send a command; return the tokens after 'OK'. Raises HalError on ERR/timeout."""
         timeout = self.default_timeout if timeout is None else timeout
         with self._lock:
+            if self._stale:
+                self._resync()
             self.t.write_line(line)
-            deadline = time.monotonic() + timeout
-            while True:
-                remaining = deadline - time.monotonic()
-                resp = self.t.read_line(max(remaining, 0.0)) if remaining > 0 else None
-                if resp is None:
-                    raise HalError("TIMEOUT", line)
-                if not resp:
-                    continue
-                if resp.startswith("EVT "):
-                    self._events.append(Event.parse(resp))
-                    continue
-                parts = resp.split()
-                if parts[0] == "OK":
-                    return parts[1:]
-                if parts[0] == "ERR":
-                    raise HalError(parts[1] if len(parts) > 1 else "ERR", " ".join(parts[2:]))
-                # unknown noise (e.g. MicroPython boot banner) is ignored
+            try:
+                parts = self._await_reply(line, timeout)
+            except HalError as e:
+                if e.code == "TIMEOUT":
+                    self._stale = True
+                raise
+            expected = REPLY.get(line.split()[0].upper())
+            if expected and (len(parts) < 2 or parts[1] != expected):
+                self._stale = True
+                raise HalError("PROTO", f"{line!r} answered with {' '.join(parts)!r}")
+            return parts[1:]
+
+    def _await_reply(self, line: str, timeout: float) -> list[str]:
+        """Read until an OK/ERR line; queue EVT lines, ignore noise (e.g. the MicroPython boot banner)."""
+        deadline = time.monotonic() + timeout
+        while True:
+            remaining = deadline - time.monotonic()
+            resp = self.t.read_line(remaining) if remaining > 0 else None
+            if resp is None:
+                raise HalError("TIMEOUT", line)
+            if resp.startswith("EVT "):
+                self._events.append(Event.parse(resp))
+                continue
+            parts = resp.split()
+            if parts and parts[0] == "OK":
+                return parts
+            if parts and parts[0] == "ERR":
+                raise HalError(parts[1] if len(parts) > 1 else "ERR", " ".join(parts[2:]))
+
+    def _resync(self) -> None:
+        """Send PING and drop every reply up to its PONG, so a late answer cannot match the next request."""
+        self.t.write_line("PING")
+        deadline = time.monotonic() + self.move_timeout * 2      # the ESP32 may still be homing
+        while True:
+            try:
+                parts = self._await_reply("PING (resync)", deadline - time.monotonic())
+            except HalError as e:
+                if e.code == "TIMEOUT":
+                    raise
+                continue                                          # a late ERR of the old request
+            if parts[1:2] == ["PONG"]:
+                self._stale = False
+                return
 
     # -- CarouselDriver --
     def ping(self) -> int:
@@ -123,7 +157,13 @@ class Esp32Carousel:
         return int(self.request("HOME", self.move_timeout * 2)[1])
 
     def goto(self, sector: int) -> int:
-        return int(self.request(f"GOTO {sector}", self.move_timeout)[1])
+        got = int(self.request(f"GOTO {sector}", self.move_timeout)[1])
+        if got != sector:
+            raise HalError("POSITION", f"at {got}, wanted {sector}")
+        return got
+
+    def jog(self, steps: int) -> int:
+        return int(self.request(f"JOG {steps}", self.move_timeout)[1])
 
     def unlock(self, level: int, seconds: int) -> int:
         return int(self.request(f"UNLOCK {level} {seconds}")[2])
@@ -151,6 +191,7 @@ class Esp32Carousel:
             flaps_closed=tuple(c == "1" for c in kv["flaps"]),
             locks_active=tuple(c == "1" for c in kv["locks"]),
             door_closed=kv["door"] == "1",
+            configured=kv["cfg"] == "1",
         )
 
     def poll_events(self, wait: float = 0.0) -> list[Event]:

@@ -2,7 +2,7 @@
 
 Pinout: electronics/pinout.md. Flashing and file upload from the Pi: firmware/esp32/flash.sh.
 
-The Pi protocol runs on UART0 (GPIO1/3), the same port as the ROM bootloader and the REPL.
+The Pi protocol runs on UART0 (GPIO1/3) via the DevKit's USB bridge (CP2102), the same port as the ROM bootloader and the REPL.
 That is why the protocol goes through sys.stdin/sys.stdout, Ctrl-C is disabled and nothing
 in this file may print().
 """
@@ -30,6 +30,7 @@ LOCKS = [Pin(n, Pin.OUT, value=0) for n in (4, 18, 19)]      # MOSFET gates, hig
 FLAPS = [Pin(n, Pin.IN, Pin.PULL_UP) for n in (21, 22, 23)]  # reed, closed = low
 DOOR = Pin(13, Pin.IN, Pin.PULL_UP)        # main door contact, closed = low
 LED = Pin(2, Pin.OUT, value=0)             # onboard LED (strapping pin: LED only, no external load)
+TMC = TMC2209(UART_TMC)                    # registers are written by Machine before every HOME/JOG
 _wdt = None                                # hardware watchdog, created in run()
 
 
@@ -41,6 +42,9 @@ def _feed():
 class Esp32HW:
     def enable(self, on):
         EN_N.value(0 if on else 1)
+
+    def setup_driver(self, irun, sgthrs):
+        TMC.setup(irun=irun, sgthrs=sgthrs)
 
     def home_active(self):
         return HOME.value() == 0
@@ -104,7 +108,6 @@ class MonoClock:
 def run():
     global _wdt
     micropython.kbd_intr(-1)  # a stray 0x03 on the line must not stop the firmware
-    TMC2209(UART_TMC).setup()
     _wdt = WDT(timeout=3000)  # resets the ESP32 (-> pins high-Z = locked, motor off) if the loop hangs
     hw = Esp32HW()
     m = Machine(hw, Config(), clock=MonoClock())

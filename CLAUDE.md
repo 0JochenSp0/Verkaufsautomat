@@ -5,10 +5,10 @@
 - Innen sitzt ein **Karussell mit 3 Ebenen** auf einer Welle mit einem Antrieb. Die Sektoren sind universal und nehmen entweder 1 Wachteleier-Schachtel oder 1 Glas Honig à 500 g auf. Ziel sind 10–20 Positionen, realistisch ca. 12 bei Ø ≈ 400 mm (Rechner mit den aktuellen Maßen: 403 mm, `cad/lib/geometry.py`).
 - **Ablauf:** Taster A (Eier) oder B (Honig), der Pi wählt den Sektor (Eier: ältestes Legedatum zuerst) → PayPal-QR (Orders API v2) → Zahlung freigegeben → Karussell dreht den Sektor vor die Klappe → **dann** Capture → nur die passende Klappe wird entriegelt.
 - **Temperatur:** Der Pi regelt den Innenraum auf **10–15 °C** über ein Relais vor dem Kühlschrank. Bei Temperatur außerhalb des Fensters, Sensorfehler oder ab dem 28. Tag nach dem Legen (§ 22 Abs. 3 Tier-LMHV) wird der Eierverkauf gesperrt. Im Winter ist die Kühlung aus und es gibt nur Honig.
-- **Hardware:** Raspberry Pi 3B (Logik, UI, Netz), dazu ESP32 (klassisch, WROOM-32) mit MicroPython als Motion-/I/O-Coprozessor über UART0. Der Pi flasht ihn selbst über EN/GPIO0 (ADR 0007). Die Software läuft mit dem System-Python direkt im Projektordner, ohne Docker und ohne venv (ADR 0010). Schrittmotor mit selbsthemmendem Schneckengetriebe und TMC2209. Hall-Sensoren für Home und Index. Fail-secure-Schlösser, Reed-Kontakte, DS18B20-Fühler.
+- **Hardware:** Raspberry Pi 3B (Logik, UI, Netz), dazu ESP32 (klassisch, WROOM-32) mit MicroPython als Motion-/I/O-Coprozessor, per USB am Pi (CP2102 → UART0, `/dev/esp32`). Der Pi flasht ihn selbst über USB (ADR 0007, ADR 0012). Die Software läuft mit dem System-Python direkt im Projektordner, ohne Docker und ohne venv (ADR 0010). Schrittmotor mit selbsthemmendem Schneckengetriebe und TMC2209. Hall-Sensoren für Home und Index. Fail-secure-Schlösser, Reed-Kontakte, DS18B20-Fühler.
 - **Bedienung (ADR 0011):** 3 Edelstahltaster: A = Eier, B = Honig, Abbruch. A und B mit Zweifarb-LED (grün = kaufbar, rot = leer oder gesperrt, blinkend = Kauf läuft, aus = außer Betrieb). Kleines Display (3,5–5″) nur für Auswahl, Preis, QR und Countdown. Der Betreiber arbeitet über die Kommandozeile (`service_cli`), eine Web-UI ist zurückgestellt (optional nach M4).
 - Beide Produkte stammen aus **eigener Erzeugung** (Direktvermarktung).
-- Plan und Begründungen: `docs/technik.md` (technischer Gesamtplan), `docs/milestones.md`, `docs/adr/`. Die `README.md` ist bewusst allgemein verständlich geschrieben, ohne Technikdetails. Rechtliches: `docs/legal.md`.
+- Plan und Begründungen: `docs/technik.md` (technischer Gesamtplan), `docs/milestones.md`, `docs/adr/`. Die `README.md` ist ein Überblick mit technischen Eckdaten, ehrlichem Stand und bekannten Risiken (nichts glattziehen). Details stehen in `docs/technik.md`. Rechtliches: `docs/legal.md`.
 
 ## Sicherheitsregeln (nicht verhandelbar)
 1. **Keine Capture vor verifizierter Positionierung.** Erst fahren und den Index prüfen, dann `capture`, dann entriegeln.
@@ -23,7 +23,7 @@
 - **Einheiten:** Längen in mm, Winkel im Code in Grad (Suffix `_deg`), Temperaturen in °C, Geld in **Cent als int** (nie float).
 - **Parameter:** Alle Maße stehen in `cad/params/params.json`. Weder CAD-Makros noch Software haben hartkodierte Maße. Die Software liest die Sektorzahl aus der Konfiguration.
 - **Hardware nur über HAL:** `vending.hal.interfaces`. Jede HAL hat einen Simulator (`vending.hal.sim`), die Tests laufen ohne Hardware.
-- **Laufzeit (ADR 0010):** System-Python, Abhängigkeiten nur aus apt (`python3-serial`, `esptool`, `gpiod`, ab M2 `python3-pygame`, `python3-segno`), `mpremote` und `ruff` per pipx. Kein Docker, keine venv, keine neuen pip-Abhängigkeiten. Aufruf aus `software/` mit `PYTHONPATH=src:firmware/esp32:../cad/lib`, Daten in `data/` der Repo-Wurzel (von `software/` aus `../data`). Seriell `/dev/ttyAMA0`.
+- **Laufzeit (ADR 0010):** System-Python, Abhängigkeiten nur aus apt (`python3-serial`, `gpiod`, ab M2 `python3-pygame`, `python3-segno`), `esptool`, `mpremote` und `ruff` per pipx (esptool: apt-Paket ohne ESP32-Stub, ADR 0012). Kein Docker, keine venv, keine neuen pip-Abhängigkeiten. Aufruf aus `software/` mit `PYTHONPATH=src:firmware/esp32:../cad/lib`, Daten in `data/` der Repo-Wurzel (von `software/` aus `../data`). Seriell `/dev/esp32` (udev-Symlink, ADR 0012).
 - **Tests:** `unittest`-kompatibel (stdlib, damit sie ohne pip auf dem Pi laufen), pytest als Runner erlaubt. Jede Änderung an Zahlung oder Zustandsmaschine braucht einen Simulator-Test.
 - **Python:** ≥ 3.11, Typannotationen, `ruff` für Stil und Lint. Möglichst wenige Abhängigkeiten.
 - **ESP32-Firmware** (`software/firmware/esp32`): MicroPython. Die Logik liegt in reinen Modulen ohne `machine`-Import, damit sie unter CPython testbar ist. `main.py` darf nichts mit `print` ausgeben, weil UART0 gleichzeitig Protokoll, REPL und Bootloader ist. Strapping-Pins sind tabu (`electronics/pinout.md`).
@@ -62,12 +62,12 @@ Das Plugin `ponytail@ponytail` ist auf Projektebene aktiv (`.claude/settings.jso
 ```bash
 python3 cad/lib/geometry.py [--params cad/params/params.json]     # Sektorrechner
 freecadcmd cad/macros/carousel.py                                  # (FreeCAD nötig) erzeugt cad/out/carousel.FCStd/.step
-sudo apt install python3-serial esptool gpiod curl pipx && pipx install mpremote ruff   # einmalig (ADR 0010)
+sudo apt install python3-serial gpiod curl pipx && pipx install esptool mpremote ruff   # einmalig (ADR 0010)
 cd software && export PYTHONPATH=src:firmware/esp32:../cad/lib    # für alle folgenden Befehle
 python3 -m unittest discover -s tests -v                          # Tests (tests/_paths.py setzt den Pfad auch selbst)
 python3 -m unittest discover -s tests -k test_home_offset         # einzelner Test
 python3 -m vending.core.service_cli --sim
-python3 -m vending.core.service_cli --port /dev/ttyAMA0           # echte Hardware
+python3 -m vending.core.service_cli --port /dev/esp32             # echte Hardware
 ruff check .
 firmware/esp32/flash.sh                                           # ESP32 komplett neu flashen
 ```
@@ -80,7 +80,7 @@ firmware/esp32/flash.sh                                           # ESP32 komple
 
 ## Stand
 - M0 (Gerüst) ist erledigt. M1 (Karussell-Prototyp) läuft: Geometrierechner, Karussell-Makro, HAL, Simulator, ESP32-Firmware (noch nicht am Gerät getestet) und Service-CLI.
-- Umgebung: Git ist eingerichtet (Branch `main`, Remote `origin` = `git@github-verkaufsautomat:0JochenSp0/Verkaufsautomat.git`). Der SSH-Alias `github-verkaufsautomat` in `~/.ssh/config` nutzt den Deploy-Key `~/.ssh/verkaufsautomat_deploy` mit Schreibrecht. GitHub-CLI `gh` liegt in `~/.local/bin` (Release-Binary, Update manuell, nicht eingeloggt). Docker ist abgeschafft (ADR 0010). Ob `python3-serial`, `esptool`, pipx, `mpremote` und `ruff` schon installiert sind, mit `which`/`python3 -c 'import serial'` prüfen, die Installation macht der Nutzer selbst. FreeCAD fehlt.
+- Umgebung: Git ist eingerichtet (Branch `main`, Remote `origin` = `git@github-verkaufsautomat:0JochenSp0/Verkaufsautomat.git`). Der SSH-Alias `github-verkaufsautomat` in `~/.ssh/config` nutzt den Deploy-Key `~/.ssh/verkaufsautomat_deploy` mit Schreibrecht. GitHub-CLI `gh` liegt in `~/.local/bin` (Release-Binary, Update manuell, nicht eingeloggt). Docker ist abgeschafft (ADR 0010). Ob `python3-serial`, pipx, `esptool`, `mpremote` und `ruff` schon installiert sind, mit `which`/`python3 -c 'import serial'` prüfen, die Installation macht der Nutzer selbst. FreeCAD fehlt.
 
 ## graphify
 

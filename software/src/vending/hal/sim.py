@@ -28,10 +28,13 @@ class FakeMechanics:
     `home_width` steps after the edge, the index sensor within ±`index_window` of each sector centre.
     Fault injection: `blocked` (every move stalls), `stall_after` (stall once after n steps),
     `slip_steps` (silently lose steps on every move).
+    With a `clock` that has `advance()` (SimClock), every move takes |steps|/speed seconds, like on the bench.
+    `levels` is the number of physical flaps/locks wired (fixed, like the pins on the board).
     """
 
     def __init__(self, steps_per_rev: int, sectors: int, levels: int = 3, home_offset: int = 0,
-                 home_width: int = 300, index_window: int = 400, start_pos: int = 12345):
+                 home_width: int = 300, index_window: int = 400, start_pos: int = 12345,
+                 clock: SimClock | None = None):
         self.rev = steps_per_rev
         self.sectors = sectors
         self.levels = levels
@@ -48,16 +51,19 @@ class FakeMechanics:
         self.slip_steps = 0
         self.total_steps = 0
         self.moves = 0
+        self.clock = clock
+        self.driver: tuple[int, int] | None = None     # last (irun, sgthrs) written
 
-    def reconfigure(self, steps_per_rev: int, sectors: int, levels: int, home_offset: int) -> None:
-        self.rev, self.sectors, self.levels, self.home_offset = steps_per_rev, sectors, levels, home_offset
+    def reconfigure(self, steps_per_rev: int, sectors: int, home_offset: int) -> None:
+        self.rev, self.sectors, self.home_offset = steps_per_rev, sectors, home_offset
         self.true_pos %= self.rev
-        self.locks = (self.locks + [False] * levels)[:levels]
-        self.flaps = (self.flaps + [True] * levels)[:levels]
 
     # --- hw interface used by Machine ---
     def enable(self, on: bool) -> None:
         self.enabled = on
+
+    def setup_driver(self, irun: int, sgthrs: int) -> None:
+        self.driver = (irun, sgthrs)
 
     def home_active(self) -> bool:
         return 0 <= self.true_pos < self.home_width
@@ -80,6 +86,12 @@ class FakeMechanics:
         return self.door
 
     def move(self, delta: int, speed: int, accel: int, stop_when=None):
+        moved, reason = self._move(delta, stop_when)
+        if self.clock is not None and speed > 0:
+            self.clock.advance(abs(moved) / speed)
+        return moved, reason
+
+    def _move(self, delta: int, stop_when):
         if not self.enabled:
             return 0, "stall"
         self.moves += 1
@@ -156,10 +168,9 @@ class SimTransport:
         self._out.extend(self.machine.tick())
         self._out.append(self.dispatcher.handle(line))
         parts = line.split()
-        if parts and parts[0] == "CFG" and parts[1] in ("steps_per_rev", "sectors", "levels", "home_offset"):
+        if len(parts) > 1 and parts[0] == "CFG" and parts[1] in ("steps_per_rev", "sectors", "home_offset"):
             c = self.machine.cfg
-            self.mech.reconfigure(c.steps_per_rev, c.sectors, c.levels, c.home_offset)
-            self.machine._flaps = [self.mech.flap_closed(i) for i in range(c.levels)]
+            self.mech.reconfigure(c.steps_per_rev, c.sectors, c.home_offset)
 
     def read_line(self, timeout: float) -> str | None:
         self._out.extend(self.machine.tick())
